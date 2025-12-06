@@ -6,13 +6,18 @@ import { PromptInput } from "@/components/PromptInput";
 import { SongList, Song } from "@/components/SongList";
 import { ExportBar } from "@/components/ExportBar";
 import { useAuth } from "@/hooks/useAuth";
+import { useYouTubeAuth } from "@/hooks/useYouTubeAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+
+const MAX_YOUTUBE_SONGS = 10;
 
 const Index = () => {
   const navigate = useNavigate();
   const { user, isLoading: authLoading } = useAuth();
+  const { isConnected: isYouTubeConnected, accessToken, isConnecting, connect: connectYouTube } = useYouTubeAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [songs, setSongs] = useState<Song[]>([]);
   const [currentPrompt, setCurrentPrompt] = useState("");
 
@@ -79,11 +84,60 @@ const Index = () => {
     });
   };
 
-  const handleExportYouTube = () => {
-    toast({
-      title: "YouTube Export",
-      description: "YouTube integration coming soon!",
-    });
+  const handleExportYouTube = async () => {
+    if (!isYouTubeConnected) {
+      connectYouTube();
+      return;
+    }
+
+    if (songs.length === 0) {
+      toast({
+        title: "No tracks",
+        description: "Generate a playlist first before exporting.",
+      });
+      return;
+    }
+
+    setIsExporting(true);
+
+    try {
+      const songsToExport = songs.map(s => ({ artist: s.artist, track_name: s.track_name }));
+      
+      const { data, error } = await supabase.functions.invoke('youtube-create-playlist', {
+        body: { 
+          accessToken, 
+          songs: songsToExport,
+          playlistName: currentPrompt || 'AI Generated Playlist'
+        }
+      });
+
+      if (error || data.error) {
+        throw new Error(data?.error || error?.message || 'Failed to create playlist');
+      }
+
+      const limitMessage = data.wasLimited 
+        ? ` (limited to ${MAX_YOUTUBE_SONGS} tracks due to API quota)`
+        : '';
+
+      toast({
+        title: "Playlist Created!",
+        description: `Added ${data.songsAdded} tracks to YouTube${limitMessage}`,
+      });
+
+      // Open the playlist in a new tab
+      if (data.playlistUrl) {
+        window.open(data.playlistUrl, '_blank');
+      }
+    } catch (error) {
+      console.error('YouTube export error:', error);
+      toast({
+        title: "Export Failed",
+        description: error instanceof Error ? error.message : "Failed to export to YouTube",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -138,6 +192,8 @@ const Index = () => {
         songCount={songs.length}
         onExportSpotify={handleExportSpotify}
         onExportYouTube={handleExportYouTube}
+        isYouTubeConnected={isYouTubeConnected}
+        isExporting={isExporting || isConnecting}
       />
     </div>
   );
