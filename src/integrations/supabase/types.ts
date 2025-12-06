@@ -14,7 +14,92 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      generated_playlists: {
+        Row: {
+          created_at: string
+          id: string
+          prompt_text: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          prompt_text: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          prompt_text?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      playlist_songs: {
+        Row: {
+          artist_name: string
+          created_at: string
+          id: string
+          playlist_id: string
+          spotify_id: string | null
+          track_name: string
+          youtube_id: string | null
+        }
+        Insert: {
+          artist_name: string
+          created_at?: string
+          id?: string
+          playlist_id: string
+          spotify_id?: string | null
+          track_name: string
+          youtube_id?: string | null
+        }
+        Update: {
+          artist_name?: string
+          created_at?: string
+          id?: string
+          playlist_id?: string
+          spotify_id?: string | null
+          track_name?: string
+          youtube_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playlist_songs_playlist_id_fkey"
+            columns: ["playlist_id"]
+            isOneToOne: false
+            referencedRelation: "generated_playlists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
