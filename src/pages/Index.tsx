@@ -1,50 +1,67 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { HeroBackground } from "@/components/HeroBackground";
 import { PromptInput } from "@/components/PromptInput";
 import { SongList, Song } from "@/components/SongList";
 import { ExportBar } from "@/components/ExportBar";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
-// Mock data for demonstration
-const mockGenerateSongs = (prompt: string): Song[] => {
-  const songs: Song[] = [
-    { id: "1", artist: "Koji Kondo", track_name: "Dire, Dire Docks" },
-    { id: "2", artist: "Koji Kondo", track_name: "Zelda's Lullaby" },
-    { id: "3", artist: "Koji Kondo", track_name: "Gerudo Valley" },
-    { id: "4", artist: "Grant Kirkhope", track_name: "Treasure Trove Cove" },
-    { id: "5", artist: "David Wise", track_name: "Aquatic Ambiance" },
-    { id: "6", artist: "Koji Kondo", track_name: "File Select (Mario 64)" },
-    { id: "7", artist: "Christopher Larkin", track_name: "City of Tears" },
-    { id: "8", artist: "Toby Fox", track_name: "Fallen Down" },
-    { id: "9", artist: "C418", track_name: "Sweden" },
-    { id: "10", artist: "Yasunori Mitsuda", track_name: "Corridors of Time" },
-  ];
-  
-  return songs;
-};
-
 const Index = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const navigate = useNavigate();
+  const { user, isLoading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [songs, setSongs] = useState<Song[]>([]);
   const [currentPrompt, setCurrentPrompt] = useState("");
 
   const handleGenerate = async (prompt: string) => {
+    if (!user) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to generate playlists.",
+      });
+      navigate("/auth");
+      return;
+    }
+
     setIsLoading(true);
     setCurrentPrompt(prompt);
     
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    
-    const generatedSongs = mockGenerateSongs(prompt);
-    setSongs(generatedSongs);
-    setIsLoading(false);
-    
-    toast({
-      title: "Playlist Generated!",
-      description: `Created ${generatedSongs.length} tracks based on your prompt.`,
-    });
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-playlist', {
+        body: { prompt }
+      });
+
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message || 'Failed to generate playlist');
+      }
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      if (data.songs && Array.isArray(data.songs)) {
+        setSongs(data.songs);
+        toast({
+          title: "Playlist Generated!",
+          description: `Created ${data.songs.length} tracks based on your prompt.`,
+        });
+      } else {
+        throw new Error('Invalid response format');
+      }
+    } catch (error) {
+      console.error('Generation error:', error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate playlist. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleRemoveSong = (id: string) => {
@@ -55,34 +72,24 @@ const Index = () => {
     });
   };
 
-  const handleLogin = () => {
+  const handleExportSpotify = () => {
     toast({
-      title: "Sign In",
-      description: "Authentication coming soon with Lovable Cloud.",
+      title: "Spotify Export",
+      description: "Spotify integration coming soon!",
     });
   };
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setSongs([]);
-  };
-
-  const handleExportSpotify = () => {
-    console.log("Export to Spotify:", songs);
-  };
-
   const handleExportYouTube = () => {
-    console.log("Export to YouTube:", songs);
+    toast({
+      title: "YouTube Export",
+      description: "YouTube integration coming soon!",
+    });
   };
 
   return (
     <div className="min-h-screen">
       <HeroBackground />
-      <Header 
-        isLoggedIn={isLoggedIn} 
-        onLogin={handleLogin} 
-        onLogout={handleLogout} 
-      />
+      <Header />
       
       <main className="pt-32 pb-40 px-4">
         <div className="max-w-4xl mx-auto">
@@ -101,6 +108,21 @@ const Index = () => {
           <div className="animate-slide-up" style={{ animationDelay: "0.2s" }}>
             <PromptInput onGenerate={handleGenerate} isLoading={isLoading} />
           </div>
+
+          {/* Auth prompt for non-logged in users */}
+          {!authLoading && !user && (
+            <div className="mt-8 text-center animate-fade-in" style={{ animationDelay: "0.3s" }}>
+              <p className="text-muted-foreground mb-3">
+                Sign in to start generating AI-powered playlists
+              </p>
+              <button
+                onClick={() => navigate("/auth")}
+                className="text-primary hover:underline font-medium"
+              >
+                Create a free account →
+              </button>
+            </div>
+          )}
 
           {/* Song List */}
           {songs.length > 0 && (
