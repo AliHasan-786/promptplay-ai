@@ -1,31 +1,22 @@
 import { Button } from "@/components/ui/button";
-import { Music2, Youtube } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { Music2, Youtube, Loader2 } from "lucide-react";
 
 interface ExportBarProps {
   songCount: number;
   onExportSpotify: () => void;
   onExportYouTube: () => void;
+  isYouTubeConnected?: boolean;
+  isExporting?: boolean;
 }
 
-export function ExportBar({ songCount, onExportSpotify, onExportYouTube }: ExportBarProps) {
+export function ExportBar({ 
+  songCount, 
+  onExportSpotify, 
+  onExportYouTube,
+  isYouTubeConnected = false,
+  isExporting = false
+}: ExportBarProps) {
   if (songCount === 0) return null;
-
-  const handleSpotifyExport = () => {
-    toast({
-      title: "Spotify Export",
-      description: "Connect your Spotify account to export this playlist.",
-    });
-    onExportSpotify();
-  };
-
-  const handleYouTubeExport = () => {
-    toast({
-      title: "YouTube Export",
-      description: "Connect your YouTube account to export this playlist.",
-    });
-    onExportYouTube();
-  };
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50">
@@ -39,7 +30,7 @@ export function ExportBar({ songCount, onExportSpotify, onExportYouTube }: Expor
             <div className="flex items-center gap-3">
               <Button
                 variant="spotify"
-                onClick={handleSpotifyExport}
+                onClick={onExportSpotify}
                 className="gap-2"
               >
                 <Music2 className="w-4 h-4" />
@@ -48,11 +39,16 @@ export function ExportBar({ songCount, onExportSpotify, onExportYouTube }: Expor
               
               <Button
                 variant="youtube"
-                onClick={handleYouTubeExport}
+                onClick={onExportYouTube}
+                disabled={isExporting}
                 className="gap-2"
               >
-                <Youtube className="w-4 h-4" />
-                Export to YouTube
+                {isExporting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Youtube className="w-4 h-4" />
+                )}
+                {isYouTubeConnected ? 'Export to YouTube' : 'Connect YouTube'}
               </Button>
             </div>
           </div>
