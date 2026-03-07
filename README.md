@@ -2,7 +2,7 @@
 
 Describe any content — music, tutorials, reviews, podcasts — and Promptplay finds the best YouTube videos, assembles them into a playlist, and exports directly to your YouTube account.
 
-**[Live Demo →](https://promptplay.ai)** *(coming soon)*
+**[Live Demo →]([https://promptplay.ai](https://promptplay-ai.vercel.app/))
 
 ---
 
