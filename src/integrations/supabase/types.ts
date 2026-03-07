@@ -20,20 +20,64 @@ export type Database = {
           id: string
           prompt_text: string
           user_id: string
+          youtube_playlist_id: string | null
+          semantic_topic: string | null
+          last_synced_at: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           prompt_text: string
           user_id: string
+          youtube_playlist_id?: string | null
+          semantic_topic?: string | null
+          last_synced_at?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           prompt_text?: string
           user_id?: string
+          youtube_playlist_id?: string | null
+          semantic_topic?: string | null
+          last_synced_at?: string | null
         }
         Relationships: []
+      }
+      playlist_items: {
+        Row: {
+          id: string
+          playlist_id: string
+          youtube_video_id: string
+          position: number | null
+          status: string
+          added_at: string
+        }
+        Insert: {
+          id?: string
+          playlist_id: string
+          youtube_video_id: string
+          position?: number | null
+          status?: string
+          added_at?: string
+        }
+        Update: {
+          id?: string
+          playlist_id?: string
+          youtube_video_id?: string
+          position?: number | null
+          status?: string
+          added_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playlist_items_playlist_id_fkey"
+            columns: ["playlist_id"]
+            isOneToOne: false
+            referencedRelation: "generated_playlists"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       playlist_songs: {
         Row: {
@@ -99,6 +143,74 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      videos: {
+        Row: {
+          id: string
+          youtube_video_id: string
+          title: string
+          channel_name: string | null
+          description: string | null
+          thumbnail_url: string | null
+          duration: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          youtube_video_id: string
+          title: string
+          channel_name?: string | null
+          description?: string | null
+          thumbnail_url?: string | null
+          duration?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          youtube_video_id?: string
+          title?: string
+          channel_name?: string | null
+          description?: string | null
+          thumbnail_url?: string | null
+          duration?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      video_embeddings: {
+        Row: {
+          id: string
+          youtube_video_id: string
+          embedding: unknown
+          metadata: Record<string, unknown>
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          youtube_video_id: string
+          embedding: unknown
+          metadata?: Record<string, unknown>
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          youtube_video_id?: string
+          embedding?: unknown
+          metadata?: Record<string, unknown>
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_embeddings_youtube_video_id_fkey"
+            columns: ["youtube_video_id"]
+            isOneToOne: true
+            referencedRelation: "videos"
+            referencedColumns: ["youtube_video_id"]
+          },
+        ]
       }
     }
     Views: {

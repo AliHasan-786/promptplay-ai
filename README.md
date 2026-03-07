@@ -1,73 +1,103 @@
-# Welcome to your Lovable project
+# Promptplay — AI YouTube Playlist Generator
 
-## Project info
+Describe any content — music, tutorials, reviews, podcasts — and Promptplay finds the best YouTube videos, assembles them into a playlist, and exports directly to your YouTube account.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+**[Live Demo →](https://promptplay.ai)** *(coming soon)*
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## Features
 
-**Use Lovable**
+- **AI-Powered Search** — Describe what you want in natural language and get curated YouTube results
+- **Export to YouTube** — One click creates a real playlist on your YouTube account
+- **Import Playlists** — Import existing YouTube playlists for backup and management
+- **Smart Deduplication** — No duplicate videos across generated results
+- **Auto-Refreshing Auth** — YouTube connection stays alive across sessions
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Tech Stack
 
-Changes made via Lovable will be committed automatically to this repo.
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | React 18, TypeScript, Tailwind CSS, shadcn/ui |
+| **Backend** | Supabase (Auth, PostgreSQL, Edge Functions) |
+| **AI** | LLM API (GPT-4o-mini) for search query generation |
+| **APIs** | YouTube Data API v3 (search, playlists, import) |
+| **Deployment** | Vercel (frontend), Supabase Cloud (backend) |
 
-**Use your preferred IDE**
+## Architecture
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+```
+┌─────────────────┐     ┌──────────────────────┐     ┌──────────────┐
+│   React App     │────▶│  Supabase Edge Fns   │────▶│  YouTube API │
+│  (Vite + TS)    │     │  • generate-playlist  │     │  • Search    │
+│                 │     │  • youtube-auth       │     │  • Playlists │
+│  Components:    │     │  • youtube-create     │     │  • Import    │
+│  • ChatInterface│     │  • youtube-import     │     └──────────────┘
+│  • Dashboard    │     └──────────┬───────────┘
+│  • ExportBar    │                │              ┌──────────────┐
+└─────────────────┘                └─────────────▶│  LLM API     │
+                                                  │  (GPT-4o-mini)│
+                                                  └──────────────┘
+```
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## Getting Started
 
-Follow these steps:
+### Prerequisites
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+- Node.js 18+
+- Supabase account with project
+- YouTube Data API key
+- Google OAuth 2.0 credentials
+- LLM API key
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### Setup
 
-# Step 3: Install the necessary dependencies.
-npm i
+```bash
+# Clone and install
+git clone https://github.com/AliHasan-786/promptplay-ai.git
+cd promptplay-ai
+npm install
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Run locally
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+### Environment Variables
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Set these as **Supabase Secrets** (not `.env`):
 
-**Use GitHub Codespaces**
+| Secret | Description |
+|--------|-------------|
+| `YOUTUBE_API_KEY` | YouTube Data API v3 key |
+| `GOOGLE_CLIENT_ID` | OAuth 2.0 Web Client ID |
+| `GOOGLE_CLIENT_SECRET` | OAuth 2.0 Client Secret |
+| `LLMAPI_KEY` | LLM provider API key |
+| `LLMAPI_BASE_URL` | LLM API endpoint (optional) |
+| `LLMAPI_MODEL` | LLM model name (default: gpt-4o-mini) |
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Deploy Edge Functions
 
-## What technologies are used for this project?
+```bash
+npx supabase functions deploy generate-playlist --no-verify-jwt
+npx supabase functions deploy youtube-auth --no-verify-jwt
+npx supabase functions deploy youtube-create-playlist --no-verify-jwt
+npx supabase functions deploy youtube-import-playlist --no-verify-jwt
+```
 
-This project is built with:
+### Deploy Frontend
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+```bash
+npm run build
+npx vercel --prod
+```
 
-## How can I deploy this project?
+## Safety & Rate Limiting
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+- **Rate limited** to 15 playlist generations per user per day
+- **Content filter** refuses prompts requesting violent, sexual, or hateful content
+- **Off-topic detection** guides users back to video search for non-video queries
+- YouTube's own Trust & Safety filters all surfaced content
 
-## Can I connect a custom domain to my Lovable project?
+## License
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+MIT

@@ -1,55 +1,52 @@
 import { Button } from "@/components/ui/button";
-import { Music2, Youtube, Loader2 } from "lucide-react";
+import { Youtube, Download, Loader2 } from "lucide-react";
+import { ImportPlaylistDialog } from "@/components/ImportPlaylistDialog";
+import { toast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 interface ExportBarProps {
-  songCount: number;
-  onExportSpotify: () => void;
-  onExportYouTube: () => void;
-  isYouTubeConnected?: boolean;
-  isExporting?: boolean;
+  authToken: string | null;
+  providerToken: string | null;
+  onImportComplete: (result: any) => void;
 }
 
-export function ExportBar({ 
-  songCount, 
-  onExportSpotify, 
-  onExportYouTube,
-  isYouTubeConnected = false,
-  isExporting = false
+export function ExportBar({
+  authToken,
+  providerToken,
+  onImportComplete,
 }: ExportBarProps) {
-  if (songCount === 0) return null;
+  if (!authToken) return null;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50">
       <div className="bg-gradient-to-t from-background via-background to-transparent pt-8 pb-6">
-        <div className="max-w-2xl mx-auto px-4">
+        <div className="max-w-3xl mx-auto px-4">
           <div className="glass rounded-2xl p-4 flex items-center justify-between gap-4">
             <div className="text-sm text-muted-foreground">
-              <span className="font-medium text-foreground">{songCount}</span> tracks ready to export
+              {providerToken ? (
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-green-400" />
+                  YouTube connected
+                </span>
+              ) : (
+                <span>Connect YouTube to export & import playlists</span>
+              )}
             </div>
-            
+
             <div className="flex items-center gap-3">
-              <Button
-                variant="spotify"
-                onClick={onExportSpotify}
-                className="gap-2"
-              >
-                <Music2 className="w-4 h-4" />
-                Export to Spotify
-              </Button>
-              
-              <Button
-                variant="youtube"
-                onClick={onExportYouTube}
-                disabled={isExporting}
-                className="gap-2"
-              >
-                {isExporting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Youtube className="w-4 h-4" />
-                )}
-                {isYouTubeConnected ? 'Export to YouTube' : 'Connect YouTube'}
-              </Button>
+              {/* Import */}
+              {providerToken && (
+                <ImportPlaylistDialog
+                  youtubeAccessToken={providerToken}
+                  authToken={authToken}
+                  onImportComplete={onImportComplete}
+                >
+                  <Button variant="outline" className="gap-2" size="sm">
+                    <Download className="w-4 h-4" />
+                    Import
+                  </Button>
+                </ImportPlaylistDialog>
+              )}
             </div>
           </div>
         </div>

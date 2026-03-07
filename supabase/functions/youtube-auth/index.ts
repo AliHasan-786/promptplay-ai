@@ -12,14 +12,30 @@ serve(async (req) => {
   }
 
   try {
-    const { action, code, redirectUri } = await req.json();
-    const clientId = Deno.env.get('GOOGLE_CLIENT_ID');
-    const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
+    const { action, code, redirectUri, refreshToken } = await req.json();
+    const clientId = Deno.env.get('GOOGLE_CLIENT_ID')?.trim();
+    const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')?.trim();
 
     if (!clientId || !clientSecret) {
-      throw new Error('Google OAuth credentials not configured');
+      console.error('Missing Google OAuth credentials');
+      return new Response(JSON.stringify({
+        error: 'Google OAuth credentials not configured.'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
+    if (!clientId.endsWith('.apps.googleusercontent.com')) {
+      return new Response(JSON.stringify({
+        error: 'Invalid Google Client ID format.'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // ─── Get OAuth URL ────────────────────────────
     if (action === 'get_auth_url') {
       const scope = 'https://www.googleapis.com/auth/youtube';
       const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
@@ -35,6 +51,7 @@ serve(async (req) => {
       });
     }
 
+    // ─── Exchange Code for Tokens ─────────────────
     if (action === 'exchange_code') {
       const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
@@ -51,13 +68,59 @@ serve(async (req) => {
       const tokens = await tokenResponse.json();
 
       if (tokens.error) {
-        throw new Error(tokens.error_description || tokens.error);
+        console.error('Token exchange error:', tokens);
+        return new Response(JSON.stringify({
+          error: tokens.error_description || tokens.error
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
       }
 
-      return new Response(JSON.stringify({ 
+      return new Response(JSON.stringify({
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
-        expires_in: tokens.expires_in 
+        expires_in: tokens.expires_in
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // ─── Refresh Token ────────────────────────────
+    if (action === 'refresh_token') {
+      if (!refreshToken) {
+        return new Response(JSON.stringify({ error: 'Refresh token required' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          refresh_token: refreshToken,
+          client_id: clientId,
+          client_secret: clientSecret,
+          grant_type: 'refresh_token',
+        }),
+      });
+
+      const tokens = await tokenResponse.json();
+
+      if (tokens.error) {
+        console.error('Token refresh error:', tokens);
+        return new Response(JSON.stringify({
+          error: tokens.error_description || tokens.error
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      return new Response(JSON.stringify({
+        access_token: tokens.access_token,
+        expires_in: tokens.expires_in
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

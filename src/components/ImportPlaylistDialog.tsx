@@ -1,0 +1,151 @@
+import { useState } from "react";
+import { Download, Loader2, Link2, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
+
+interface ImportPlaylistDialogProps {
+    youtubeAccessToken: string | null;
+    authToken: string | null;
+    onImportComplete: (result: any) => void;
+    children?: React.ReactNode;
+}
+
+export function ImportPlaylistDialog({
+    youtubeAccessToken,
+    authToken,
+    onImportComplete,
+    children,
+}: ImportPlaylistDialogProps) {
+    const [open, setOpen] = useState(false);
+    const [url, setUrl] = useState("");
+    const [isImporting, setIsImporting] = useState(false);
+
+    const handleImport = async () => {
+        if (!url.trim()) return;
+        if (!youtubeAccessToken) {
+            toast({
+                title: "YouTube not connected",
+                description: "Connect your YouTube account first to import playlists.",
+                variant: "destructive",
+            });
+            return;
+        }
+        if (!authToken) {
+            toast({
+                title: "Sign in required",
+                description: "Please sign in to import playlists.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        setIsImporting(true);
+        try {
+            const { data, error } = await supabase.functions.invoke("youtube-import-playlist", {
+                body: {
+                    youtube_playlist_url: url.trim(),
+                    youtube_access_token: youtubeAccessToken,
+                },
+            });
+
+            if (error) throw error;
+            if (data?.error) throw new Error(data.error);
+
+            toast({
+                title: "Playlist Imported!",
+                description: `"${data.title}" — ${data.total_videos} videos imported (${data.active_videos} active, ${data.deleted_videos} deleted, ${data.private_videos} private)`,
+            });
+
+            onImportComplete(data);
+            setOpen(false);
+            setUrl("");
+        } catch (error) {
+            console.error("Import error:", error);
+            toast({
+                title: "Import Failed",
+                description: error instanceof Error ? error.message : "Failed to import playlist",
+                variant: "destructive",
+            });
+        } finally {
+            setIsImporting(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                {children || (
+                    <Button variant="outline" className="gap-2">
+                        <Download className="w-4 h-4" />
+                        Import Playlist
+                    </Button>
+                )}
+            </DialogTrigger>
+            <DialogContent className="glass border-border/50">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <Link2 className="w-5 h-5 text-primary" />
+                        Import YouTube Playlist
+                    </DialogTitle>
+                    <DialogDescription>
+                        Paste a YouTube playlist URL to import all video metadata.
+                        Imported playlists can be used to generate highly curated AI recommendations.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 mt-2">
+                    <div className="relative">
+                        <Input
+                            value={url}
+                            onChange={(e) => setUrl(e.target.value)}
+                            placeholder="https://www.youtube.com/playlist?list=PLxxxxxx"
+                            className="pr-8"
+                            disabled={isImporting}
+                        />
+                        {url && (
+                            <button
+                                onClick={() => setUrl("")}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        )}
+                    </div>
+
+                    <Button
+                        onClick={handleImport}
+                        disabled={!url.trim() || isImporting}
+                        className="w-full gap-2"
+                        variant="glow"
+                    >
+                        {isImporting ? (
+                            <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Importing...
+                            </>
+                        ) : (
+                            <>
+                                <Download className="w-4 h-4" />
+                                Import Playlist
+                            </>
+                        )}
+                    </Button>
+
+                    <p className="text-xs text-muted-foreground text-center">
+                        We'll securely sync this playlist so you can immediately base new AI searches off of it.
+                    </p>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}

@@ -5,6 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 interface AuthContextType {
   user: User | null;
   session: Session | null;
+  providerToken: string | null;
+  providerRefreshToken: string | null;
   isLoading: boolean;
   signOut: () => Promise<void>;
 }
@@ -40,8 +42,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  const providerToken = session?.provider_token || null;
+  const providerRefreshToken = session?.provider_refresh_token || null;
+
   return (
-    <AuthContext.Provider value={{ user, session, isLoading, signOut }}>
+    <AuthContext.Provider value={{ user, session, providerToken, providerRefreshToken, isLoading, signOut }}>
       {children}
     </AuthContext.Provider>
   );
