@@ -56,17 +56,34 @@ export function PlaylistDashboard({
 
             if (playlistError) throw playlistError;
 
-            // Fetch songs for each playlist
-            const enriched: PlaylistRecord[] = [];
-            for (const p of playlistData || []) {
-                const { data: songs } = await supabase
-                    .from("playlist_songs")
-                    .select("id, track_name, artist_name, youtube_id")
-                    .eq("playlist_id", p.id)
-                    .order("created_at", { ascending: true });
-
-                enriched.push({ ...p, songs: songs || [] });
+            if (!playlistData || playlistData.length === 0) {
+                setPlaylists([]);
+                return;
             }
+
+            // Batch fetch all songs in a single query instead of one per playlist
+            const playlistIds = playlistData.map(p => p.id);
+            const { data: allSongs } = await supabase
+                .from("playlist_songs")
+                .select("id, track_name, artist_name, youtube_id, playlist_id")
+                .in("playlist_id", playlistIds)
+                .order("created_at", { ascending: true });
+
+            const songsByPlaylist = (allSongs || []).reduce<Record<string, PlaylistSong[]>>((acc, song: any) => {
+                if (!acc[song.playlist_id]) acc[song.playlist_id] = [];
+                acc[song.playlist_id].push({
+                    id: song.id,
+                    track_name: song.track_name,
+                    artist_name: song.artist_name,
+                    youtube_id: song.youtube_id,
+                });
+                return acc;
+            }, {});
+
+            const enriched: PlaylistRecord[] = playlistData.map(p => ({
+                ...p,
+                songs: songsByPlaylist[p.id] || [],
+            }));
 
             setPlaylists(enriched);
         } catch (error) {

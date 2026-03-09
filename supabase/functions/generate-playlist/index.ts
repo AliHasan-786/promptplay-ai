@@ -96,6 +96,12 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    if (prompt.trim().length > 2000) {
+      return new Response(
+        JSON.stringify({ error: 'Prompt is too long. Please keep it under 2000 characters.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // ── Rate limiting ──
     const authHeader = req.headers.get('Authorization');
@@ -107,7 +113,7 @@ serve(async (req) => {
           JSON.stringify({
             error: `You've reached your daily limit of ${DAILY_LIMIT} playlists. Come back tomorrow!`,
           }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     }
