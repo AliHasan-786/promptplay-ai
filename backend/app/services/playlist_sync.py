@@ -6,10 +6,9 @@ detecting ghost (deleted/private) videos, and finding replacements.
 
 import logging
 from datetime import datetime, timezone
-from typing import Optional
 
 from app.db.supabase_client import get_supabase_client
-from app.services import youtube_api, ghost_recovery, embeddings
+from app.services import youtube_api, ghost_recovery
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +53,7 @@ async def import_playlist(
         "prompt_text": f"Imported from YouTube: {yt_playlist_id}",
         "youtube_playlist_id": yt_playlist_id,
         "last_synced_at": datetime.now(timezone.utc).isoformat(),
+        "source": "import",  # WARNING-9: distinguish from ai_generate source
     }).execute()
 
     playlist_id = playlist_result.data[0]["id"]
@@ -63,52 +63,63 @@ async def import_playlist(
     deleted_count = 0
     private_count = 0
 
-    # Process each item
-    for item in items:
-        video_id = item["youtube_video_id"]
-        status = item["status"]
+    # WARNING-1: Wrap item processing in try/except to rollback on partial failure
+    try:
+        # Process each item
+        for item in items:
+            video_id = item["youtube_video_id"]
+            status = item["status"]
 
-        if status == "active":
-            active_count += 1
-            # Snapshot the metadata in our videos table
-            _upsert_video(db, item)
-        elif status == "deleted":
-            deleted_count += 1
-            # Attempt to recover metadata for already-deleted videos
-            recovered = await ghost_recovery.recover_video_title(video_id)
-            if recovered:
+            if status == "active":
+                active_count += 1
+                # Snapshot the metadata in our videos table
+                _upsert_video(db, item)
+            elif status == "deleted":
+                deleted_count += 1
+                # Attempt to recover metadata for already-deleted videos
+                recovered = await ghost_recovery.recover_video_title(video_id)
+                if recovered:
+                    _upsert_video(db, {
+                        "youtube_video_id": video_id,
+                        "title": recovered.get("title", f"Deleted video ({video_id})"),
+                        "channel_name": recovered.get("channel_name"),
+                        "description": "",
+                        "thumbnail_url": "",
+                    })
+                else:
+                    _upsert_video(db, {
+                        "youtube_video_id": video_id,
+                        "title": f"Deleted video ({video_id})",
+                        "channel_name": None,
+                        "description": "",
+                        "thumbnail_url": "",
+                    })
+            elif status == "private":
+                private_count += 1
                 _upsert_video(db, {
                     "youtube_video_id": video_id,
-                    "title": recovered.get("title", f"Deleted video ({video_id})"),
-                    "channel_name": recovered.get("channel_name"),
-                    "description": "",
-                    "thumbnail_url": "",
-                })
-            else:
-                _upsert_video(db, {
-                    "youtube_video_id": video_id,
-                    "title": f"Deleted video ({video_id})",
+                    "title": f"Private video ({video_id})",
                     "channel_name": None,
                     "description": "",
                     "thumbnail_url": "",
                 })
-        elif status == "private":
-            private_count += 1
-            _upsert_video(db, {
-                "youtube_video_id": video_id,
-                "title": f"Private video ({video_id})",
-                "channel_name": None,
-                "description": "",
-                "thumbnail_url": "",
-            })
 
-        # Create playlist_item record
-        db.table("playlist_items").upsert({
-            "playlist_id": playlist_id,
-            "youtube_video_id": video_id,
-            "position": item.get("position", 0),
-            "status": status,
-        }, on_conflict="playlist_id,youtube_video_id").execute()
+            # Create playlist_item record
+            db.table("playlist_items").upsert({
+                "playlist_id": playlist_id,
+                "youtube_video_id": video_id,
+                "position": item.get("position", 0),
+                "status": status,
+            }, on_conflict="playlist_id,youtube_video_id").execute()
+
+    except Exception as e:
+        # WARNING-1: Clean up orphaned playlist record on partial failure
+        logger.error(f"Import failed mid-way, rolling back playlist {playlist_id}: {e}")
+        try:
+            db.table("generated_playlists").delete().eq("id", playlist_id).execute()
+        except Exception as cleanup_error:
+            logger.error(f"Rollback also failed for playlist {playlist_id}: {cleanup_error}")
+        raise
 
     logger.info(
         f"Imported playlist {yt_playlist_id}: "
@@ -128,6 +139,7 @@ async def import_playlist(
 async def sync_playlist(
     playlist_id: str,
     access_token: str,
+    user_id: str,
 ) -> dict:
     """Re-sync a playlist with YouTube to detect newly deleted/private videos.
 
@@ -137,16 +149,17 @@ async def sync_playlist(
     Args:
         playlist_id: Our internal playlist ID.
         access_token: User's YouTube OAuth access token.
+        user_id: Supabase user ID (used to verify ownership).
 
     Returns:
         Sync result with ghost video details.
     """
     db = get_supabase_client()
 
-    # Get playlist from our DB
+    # Get playlist from our DB — ownership check included
     playlist = db.table("generated_playlists").select("*").eq(
         "id", playlist_id
-    ).single().execute()
+    ).eq("user_id", user_id).single().execute()
 
     if not playlist.data:
         raise ValueError("Playlist not found")

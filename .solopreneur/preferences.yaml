@@ -1,0 +1,7 @@
+git:
+  comfort: basic
+  notes: "Familiar with GitHub, not super familiar with git CLI commands"
+
+deployment:
+  platform: none
+  configured: false
