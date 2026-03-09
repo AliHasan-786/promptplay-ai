@@ -55,18 +55,49 @@ export function PlaylistDashboard({
                 .order("created_at", { ascending: false });
 
             if (playlistError) throw playlistError;
-
-            // Fetch songs for each playlist
-            const enriched: PlaylistRecord[] = [];
-            for (const p of playlistData || []) {
-                const { data: songs } = await supabase
-                    .from("playlist_songs")
-                    .select("id, track_name, artist_name, youtube_id")
-                    .eq("playlist_id", p.id)
-                    .order("created_at", { ascending: true });
-
-                enriched.push({ ...p, songs: songs || [] });
+            if (!playlistData || playlistData.length === 0) {
+                setPlaylists([]);
+                return;
             }
+
+            // Batch fetch all items for all playlists in one query
+            const playlistIds = playlistData.map(p => p.id);
+            const { data: allItems } = await supabase
+                .from("playlist_items")
+                .select("id, playlist_id, youtube_video_id, position")
+                .in("playlist_id", playlistIds)
+                .order("position", { ascending: true });
+
+            // Batch fetch all referenced videos in one query
+            const videoIds = [...new Set((allItems || []).map(i => i.youtube_video_id))];
+            const videosMap: Record<string, { title: string; channel_name: string | null }> = {};
+            if (videoIds.length > 0) {
+                const { data: allVideos } = await supabase
+                    .from("videos")
+                    .select("youtube_video_id, title, channel_name")
+                    .in("youtube_video_id", videoIds);
+                for (const v of allVideos || []) {
+                    videosMap[v.youtube_video_id] = v;
+                }
+            }
+
+            // Group items by playlist
+            const itemsByPlaylist: Record<string, PlaylistSong[]> = {};
+            for (const item of allItems || []) {
+                const video = videosMap[item.youtube_video_id];
+                if (!itemsByPlaylist[item.playlist_id]) itemsByPlaylist[item.playlist_id] = [];
+                itemsByPlaylist[item.playlist_id].push({
+                    id: item.id,
+                    track_name: video?.title || "Unknown",
+                    artist_name: video?.channel_name || "Unknown",
+                    youtube_id: item.youtube_video_id,
+                });
+            }
+
+            const enriched: PlaylistRecord[] = playlistData.map(p => ({
+                ...p,
+                songs: itemsByPlaylist[p.id] || [],
+            }));
 
             setPlaylists(enriched);
         } catch (error) {
@@ -78,9 +109,13 @@ export function PlaylistDashboard({
 
     useEffect(() => {
         fetchPlaylists();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [authToken, refreshTrigger]);
 
     const handleDelete = async (playlistId: string) => {
+        // WARNING-10: Confirm before deleting
+        if (!window.confirm("Delete this playlist? This cannot be undone.")) return;
+
         try {
             // Songs cascade-delete via FK
             const { error } = await supabase
@@ -115,13 +150,30 @@ export function PlaylistDashboard({
                 body: { prompt },
             });
 
-            if (data?.error) throw new Error(data.error);
+            // WARNING-12: Detect expired YouTube/Supabase token
+            if (data?.error) {
+                const errMsg: string = data.error;
+                if (
+                    errMsg.toLowerCase().includes("401") ||
+                    errMsg.toLowerCase().includes("unauthorized") ||
+                    errMsg.toLowerCase().includes("invalid_grant")
+                ) {
+                    toast({
+                        title: "Session expired",
+                        description: "Please sign out and sign back in to reconnect your YouTube account.",
+                        variant: "destructive",
+                    });
+                    return;
+                }
+                throw new Error(errMsg);
+            }
             if (error) throw error;
 
-            const videos = (data?.songs || []).map((v: any) => ({
-                artist_name: v.creator || "Unknown",
-                track_name: v.title || "Unknown",
-                youtube_id: v.youtube_id || null,
+            const videos = (data?.songs || []).filter((v: Record<string, unknown>) => v.youtube_id).map((v: Record<string, unknown>) => ({
+                youtube_id: v.youtube_id as string,
+                title: (v.title as string) || "Unknown",
+                creator: (v.creator as string) || "Unknown",
+                thumbnail: (v.thumbnail as string) || "",
             }));
 
             if (videos.length === 0) {
@@ -136,13 +188,28 @@ export function PlaylistDashboard({
 
             if (playlistError) throw playlistError;
 
-            const songsToInsert = videos.map((v: any) => ({
-                playlist_id: newPlaylist.id,
-                ...v
+            // Upsert video metadata
+            const videosToUpsert = videos.map(v => ({
+                youtube_video_id: v.youtube_id,
+                title: v.title,
+                channel_name: v.creator,
+                description: "",
+                thumbnail_url: v.thumbnail,
             }));
+            const { error: videosError } = await supabase
+                .from("videos")
+                .upsert(videosToUpsert, { onConflict: "youtube_video_id" });
+            if (videosError) throw videosError;
 
-            const { error: songsError } = await supabase.from("playlist_songs").insert(songsToInsert);
-            if (songsError) throw songsError;
+            // Insert playlist items
+            const itemsToInsert = videos.map((v, idx) => ({
+                playlist_id: newPlaylist.id,
+                youtube_video_id: v.youtube_id,
+                position: idx,
+                status: "active",
+            }));
+            const { error: itemsError } = await supabase.from("playlist_items").insert(itemsToInsert);
+            if (itemsError) throw itemsError;
 
             toast({
                 title: "Recommendations Generated!",
@@ -191,7 +258,24 @@ export function PlaylistDashboard({
             });
 
             if (error) throw error;
-            if (data?.error) throw new Error(data.error);
+
+            // WARNING-12: Detect expired YouTube token
+            if (data?.error) {
+                const errMsg: string = data.error;
+                if (
+                    errMsg.toLowerCase().includes("401") ||
+                    errMsg.toLowerCase().includes("unauthorized") ||
+                    errMsg.toLowerCase().includes("invalid_grant")
+                ) {
+                    toast({
+                        title: "Session expired",
+                        description: "Please sign out and sign back in to reconnect your YouTube account.",
+                        variant: "destructive",
+                    });
+                    return;
+                }
+                throw new Error(errMsg);
+            }
 
             // Update the playlist record with the YouTube playlist ID
             if (data?.playlistId) {

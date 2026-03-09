@@ -77,8 +77,8 @@ class GenerateResponse(BaseModel):
 # ─── Import Models ────────────────────────────────────────
 
 class ImportPlaylistRequest(BaseModel):
+    # CRITICAL-2: access_token removed — now read from X-YouTube-Token header
     youtube_playlist_url: str = Field(..., description="Full YouTube playlist URL")
-    access_token: str = Field(..., description="User's YouTube OAuth access token")
 
 
 class ImportPlaylistResponse(BaseModel):
@@ -93,7 +93,8 @@ class ImportPlaylistResponse(BaseModel):
 # ─── Sync / Ghost Video Models ───────────────────────────
 
 class SyncPlaylistRequest(BaseModel):
-    access_token: str
+    # CRITICAL-2: access_token removed — now read from X-YouTube-Token header
+    pass
 
 
 class GhostVideo(BaseModel):
@@ -127,8 +128,8 @@ class SuggestionResponse(BaseModel):
 # ─── YouTube Export Models ────────────────────────────────
 
 class ExportToYouTubeRequest(BaseModel):
-    playlist_id: str
-    access_token: str
+    # CRITICAL-2: access_token removed — now read from X-YouTube-Token header
+    # WARNING-14: playlist_id removed — path param is always used; body field was misleading
     playlist_name: Optional[str] = None
 
 

@@ -4,9 +4,14 @@ Handles CRUD, import from YouTube, sync for ghost video detection,
 and export to YouTube.
 """
 
+import asyncio
 import logging
-from fastapi import APIRouter, HTTPException, Header
+from collections import defaultdict
+from fastapi import APIRouter, HTTPException, Header, Request
 from typing import Optional
+
+# WARNING-4: Import moved to module level (was inside _get_user_id function body)
+from supabase import create_client
 
 from app.models.schemas import (
     ImportPlaylistRequest, ImportPlaylistResponse,
@@ -15,7 +20,7 @@ from app.models.schemas import (
     PlaylistResponse, PlaylistItemResponse, GhostVideo,
     VideoStatus,
 )
-from app.services import playlist_sync, youtube_api, ghost_recovery
+from app.services import playlist_sync, youtube_api
 from app.db.supabase_client import get_supabase_client
 from app.config import get_settings
 
@@ -35,32 +40,47 @@ async def list_playlists(authorization: Optional[str] = Header(None)):
         "user_id", user_id
     ).order("created_at", desc=True).execute()
 
+    if not result.data:
+        return []
+
+    playlist_ids = [p["id"] for p in result.data]
+
+    # Batch fetch all items for all playlists in one query
+    items_result = db.table("playlist_items").select("*").in_(
+        "playlist_id", playlist_ids
+    ).order("position").execute()
+
+    # Batch fetch all referenced videos in one query
+    video_ids = list({item["youtube_video_id"] for item in (items_result.data or [])})
+    videos_map: dict = {}
+    if video_ids:
+        videos_result = db.table("videos").select("*").in_(
+            "youtube_video_id", video_ids
+        ).execute()
+        videos_map = {v["youtube_video_id"]: v for v in (videos_result.data or [])}
+
+    # Group items by playlist
+    items_by_playlist: dict = defaultdict(list)
+    for item in (items_result.data or []):
+        items_by_playlist[item["playlist_id"]].append(item)
+
+    # Assemble response
+    from app.models.schemas import VideoBase
     playlists = []
     for p in result.data:
-        # Get items for each playlist
-        items_result = db.table("playlist_items").select("*").eq(
-            "playlist_id", p["id"]
-        ).order("position").execute()
-
         items = []
-        for item in items_result.data:
-            # Join with video metadata
-            video = db.table("videos").select("*").eq(
-                "youtube_video_id", item["youtube_video_id"]
-            ).single().execute()
-
+        for item in items_by_playlist[p["id"]]:
+            video = videos_map.get(item["youtube_video_id"])
             video_data = None
-            if video.data:
-                from app.models.schemas import VideoBase
+            if video:
                 video_data = VideoBase(
-                    youtube_video_id=video.data["youtube_video_id"],
-                    title=video.data["title"],
-                    channel_name=video.data.get("channel_name"),
-                    description=video.data.get("description"),
-                    thumbnail_url=video.data.get("thumbnail_url"),
-                    duration=video.data.get("duration"),
+                    youtube_video_id=video["youtube_video_id"],
+                    title=video["title"],
+                    channel_name=video.get("channel_name"),
+                    description=video.get("description"),
+                    thumbnail_url=video.get("thumbnail_url"),
+                    duration=video.get("duration"),
                 )
-
             items.append(PlaylistItemResponse(
                 id=item["id"],
                 youtube_video_id=item["youtube_video_id"],
@@ -107,24 +127,29 @@ async def get_playlist(
         "playlist_id", playlist_id
     ).order("position").execute()
 
+    # Batch fetch all videos in one query
+    video_ids = list({item["youtube_video_id"] for item in (items_result.data or [])})
+    videos_map: dict = {}
+    if video_ids:
+        videos_result = db.table("videos").select("*").in_(
+            "youtube_video_id", video_ids
+        ).execute()
+        videos_map = {v["youtube_video_id"]: v for v in (videos_result.data or [])}
+
+    from app.models.schemas import VideoBase
     items = []
-    for item in items_result.data:
-        video = db.table("videos").select("*").eq(
-            "youtube_video_id", item["youtube_video_id"]
-        ).single().execute()
-
+    for item in (items_result.data or []):
+        video = videos_map.get(item["youtube_video_id"])
         video_data = None
-        if video.data:
-            from app.models.schemas import VideoBase
+        if video:
             video_data = VideoBase(
-                youtube_video_id=video.data["youtube_video_id"],
-                title=video.data["title"],
-                channel_name=video.data.get("channel_name"),
-                description=video.data.get("description"),
-                thumbnail_url=video.data.get("thumbnail_url"),
-                duration=video.data.get("duration"),
+                youtube_video_id=video["youtube_video_id"],
+                title=video["title"],
+                channel_name=video.get("channel_name"),
+                description=video.get("description"),
+                thumbnail_url=video.get("thumbnail_url"),
+                duration=video.get("duration"),
             )
-
         items.append(PlaylistItemResponse(
             id=item["id"],
             youtube_video_id=item["youtube_video_id"],
@@ -149,6 +174,7 @@ async def get_playlist(
 @router.post("/import", response_model=ImportPlaylistResponse)
 async def import_playlist(
     request: ImportPlaylistRequest,
+    raw_request: Request,
     authorization: Optional[str] = Header(None),
 ):
     """Import an existing YouTube playlist and snapshot all video metadata.
@@ -160,10 +186,15 @@ async def import_playlist(
     if not user_id:
         raise HTTPException(status_code=401, detail="Authentication required")
 
+    # CRITICAL-2: Read YouTube token from header instead of request body
+    access_token = raw_request.headers.get("x-youtube-token")
+    if not access_token:
+        raise HTTPException(status_code=401, detail="YouTube access token required (X-YouTube-Token header)")
+
     try:
         result = await playlist_sync.import_playlist(
             youtube_playlist_url=request.youtube_playlist_url,
-            access_token=request.access_token,
+            access_token=access_token,
             user_id=user_id,
         )
     except ValueError as e:
@@ -189,6 +220,7 @@ async def import_playlist(
 async def sync_playlist(
     playlist_id: str,
     request: SyncPlaylistRequest,
+    raw_request: Request,
     authorization: Optional[str] = Header(None),
 ):
     """Sync a playlist with YouTube to detect ghost videos.
@@ -200,10 +232,16 @@ async def sync_playlist(
     if not user_id:
         raise HTTPException(status_code=401, detail="Authentication required")
 
+    # CRITICAL-2: Read YouTube token from header instead of request body
+    access_token = raw_request.headers.get("x-youtube-token")
+    if not access_token:
+        raise HTTPException(status_code=401, detail="YouTube access token required (X-YouTube-Token header)")
+
     try:
         result = await playlist_sync.sync_playlist(
             playlist_id=playlist_id,
-            access_token=request.access_token,
+            access_token=access_token,
+            user_id=user_id,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -234,12 +272,18 @@ async def sync_playlist(
 async def export_to_youtube(
     playlist_id: str,
     request: ExportToYouTubeRequest,
+    raw_request: Request,
     authorization: Optional[str] = Header(None),
 ):
     """Export an internally-created playlist to the user's YouTube account."""
     user_id = await _get_user_id(authorization)
     if not user_id:
         raise HTTPException(status_code=401, detail="Authentication required")
+
+    # CRITICAL-2: Read YouTube token from header instead of request body
+    access_token = raw_request.headers.get("x-youtube-token")
+    if not access_token:
+        raise HTTPException(status_code=401, detail="YouTube access token required (X-YouTube-Token header)")
 
     settings = get_settings()
     db = get_supabase_client()
@@ -266,24 +310,23 @@ async def export_to_youtube(
     # Create YouTube playlist
     title = request.playlist_name or playlist.data.get("prompt_text", "AI Generated Playlist")
     yt_playlist_id = await youtube_api.create_playlist(
-        request.access_token,
+        access_token,
         title=title[:100],  # YouTube title max length
-        description=f"Generated by PromptPlay AI",
+        description="Generated by PromptPlay AI",
     )
 
-    # Add videos
-    added = 0
-    failed = 0
-    for item in limited_items:
-        success = await youtube_api.add_video_to_playlist(
-            request.access_token,
+    # WARNING-3: Add videos in parallel instead of sequentially
+    tasks = [
+        youtube_api.add_video_to_playlist(
+            access_token,
             yt_playlist_id,
             item["youtube_video_id"],
         )
-        if success:
-            added += 1
-        else:
-            failed += 1
+        for item in limited_items
+    ]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    added = sum(1 for r in results if r is True)
+    failed = sum(1 for r in results if r is not True)
 
     # Update playlist with YouTube ID
     db.table("generated_playlists").update({
@@ -326,7 +369,13 @@ async def delete_playlist(
 
 
 async def _get_user_id(authorization: Optional[str]) -> Optional[str]:
-    """Extract user ID from the Supabase JWT."""
+    """Extract user ID from the Supabase JWT.
+
+    WARNING-4: create_client import moved to module level.
+    The client is created per-request here (lightweight — no connection pooling needed
+    for Supabase's REST-based client). A module-level singleton would require sharing
+    auth state across requests, which is incorrect for per-user token validation.
+    """
     if not authorization:
         return None
 
@@ -335,7 +384,6 @@ async def _get_user_id(authorization: Optional[str]) -> Optional[str]:
         return None
 
     try:
-        from supabase import create_client
         settings = get_settings()
         client = create_client(settings.supabase_url, settings.supabase_anon_key)
         user = client.auth.get_user(token)

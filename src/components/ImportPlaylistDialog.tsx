@@ -16,7 +16,7 @@ import { toast } from "@/hooks/use-toast";
 interface ImportPlaylistDialogProps {
     youtubeAccessToken: string | null;
     authToken: string | null;
-    onImportComplete: (result: any) => void;
+    onImportComplete: (result: Record<string, unknown>) => void;
     children?: React.ReactNode;
 }
 
@@ -51,15 +51,35 @@ export function ImportPlaylistDialog({
 
         setIsImporting(true);
         try {
+            // CRITICAL-2: Pass YouTube token as a header, not in the request body
             const { data, error } = await supabase.functions.invoke("youtube-import-playlist", {
                 body: {
                     youtube_playlist_url: url.trim(),
-                    youtube_access_token: youtubeAccessToken,
+                },
+                headers: {
+                    "X-YouTube-Token": youtubeAccessToken,
                 },
             });
 
             if (error) throw error;
-            if (data?.error) throw new Error(data.error);
+
+            // WARNING-12: Detect expired YouTube token and guide user to re-auth
+            if (data?.error) {
+                const errMsg: string = data.error;
+                if (
+                    errMsg.toLowerCase().includes("401") ||
+                    errMsg.toLowerCase().includes("unauthorized") ||
+                    errMsg.toLowerCase().includes("invalid_grant")
+                ) {
+                    toast({
+                        title: "Session expired",
+                        description: "Please sign out and sign back in to reconnect your YouTube account.",
+                        variant: "destructive",
+                    });
+                    return;
+                }
+                throw new Error(errMsg);
+            }
 
             toast({
                 title: "Playlist Imported!",
