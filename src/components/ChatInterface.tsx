@@ -80,7 +80,7 @@ export function ChatInterface({ authToken, onPlaylistCreated }: ChatInterfacePro
             if (data?.error) throw new Error(data.error);
             if (error) throw error;
 
-            const videos: VideoResult[] = (data?.songs || []).map((v: any) => ({
+            const videos: VideoResult[] = (data?.songs || []).map((v: Record<string, unknown>) => ({
                 id: v.id || `video-${Date.now()}-${Math.random()}`,
                 title: v.title || "Unknown",
                 creator: v.creator || "Unknown",
@@ -148,21 +148,45 @@ export function ChatInterface({ authToken, onPlaylistCreated }: ChatInterfacePro
                 throw new Error(playlistError.message);
             }
 
-            // Save each video as a playlist song
-            const songsToInsert = videos.map((v) => ({
-                playlist_id: playlist.id,
-                artist_name: v.creator,
-                track_name: v.title,
-                youtube_id: v.youtube_id || null,
-            }));
+            // Upsert video metadata into the shared videos table
+            const videosToUpsert = videos
+                .filter(v => v.youtube_id)
+                .map(v => ({
+                    youtube_video_id: v.youtube_id!,
+                    title: v.title,
+                    channel_name: v.creator,
+                    description: "",
+                    thumbnail_url: v.thumbnail || "",
+                }));
 
-            const { error: songsError } = await supabase
-                .from("playlist_songs")
-                .insert(songsToInsert);
+            if (videosToUpsert.length > 0) {
+                const { error: videosError } = await supabase
+                    .from("videos")
+                    .upsert(videosToUpsert, { onConflict: "youtube_video_id" });
+                if (videosError) {
+                    console.error("Videos upsert error:", videosError);
+                    throw new Error(videosError.message);
+                }
+            }
 
-            if (songsError) {
-                console.error("Songs insert error:", songsError);
-                throw new Error(songsError.message);
+            // Insert playlist_items linking the playlist to each video
+            const itemsToInsert = videos
+                .filter(v => v.youtube_id)
+                .map((v, idx) => ({
+                    playlist_id: playlist.id,
+                    youtube_video_id: v.youtube_id!,
+                    position: idx,
+                    status: "active",
+                }));
+
+            if (itemsToInsert.length > 0) {
+                const { error: itemsError } = await supabase
+                    .from("playlist_items")
+                    .insert(itemsToInsert);
+                if (itemsError) {
+                    console.error("Items insert error:", itemsError);
+                    throw new Error(itemsError.message);
+                }
             }
 
             setSavedPlaylists(prev => new Set(prev).add(messageId));

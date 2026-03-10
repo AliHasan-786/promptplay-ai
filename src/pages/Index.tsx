@@ -18,7 +18,7 @@ const Index = () => {
     setRefreshKey(prev => prev + 1);
   };
 
-  const handleImportComplete = (_result: any) => {
+  const handleImportComplete = (_result: unknown) => {
     setRefreshKey(prev => prev + 1);
   };
 

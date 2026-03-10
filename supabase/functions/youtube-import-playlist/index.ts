@@ -181,7 +181,7 @@ serve(async (req) => {
                 .upsert({
                     youtube_video_id: videoId,
                     title: decodeHtml(item.snippet.title || 'Unknown'),
-                    channel_title: decodeHtml(item.snippet.videoOwnerChannelTitle || 'Unknown'),
+                    channel_name: decodeHtml(item.snippet.videoOwnerChannelTitle || 'Unknown'),
                     thumbnail_url: thumbnailUrl,
                     privacy_status: isActive ? 'public' : privacyStatus,
                 }, { onConflict: 'youtube_video_id' });

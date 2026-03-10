@@ -7,7 +7,7 @@ import { useState } from "react";
 interface ExportBarProps {
   authToken: string | null;
   providerToken: string | null;
-  onImportComplete: (result: any) => void;
+  onImportComplete: (result: Record<string, unknown>) => void;
 }
 
 export function ExportBar({
