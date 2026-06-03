@@ -1,8 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { Youtube, Download, Loader2 } from "lucide-react";
+import { Download } from "lucide-react";
 import { ImportPlaylistDialog } from "@/components/ImportPlaylistDialog";
-import { toast } from "@/hooks/use-toast";
-import { useState } from "react";
 
 interface ExportBarProps {
   authToken: string | null;

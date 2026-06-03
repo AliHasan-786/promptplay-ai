@@ -26,14 +26,14 @@ interface PlaylistDashboardProps {
     authToken: string | null;
     providerToken: string | null;
     refreshTrigger: number;
-    onExportToYouTube?: (playlistId: string) => void;
+    _onExportToYouTube?: (playlistId: string) => void;
 }
 
 export function PlaylistDashboard({
     authToken,
     providerToken,
     refreshTrigger,
-    onExportToYouTube,
+    _onExportToYouTube,
 }: PlaylistDashboardProps) {
     const [playlists, setPlaylists] = useState<PlaylistRecord[]>([]);
     const [isLoading, setIsLoading] = useState(false);
