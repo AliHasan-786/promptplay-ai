@@ -119,7 +119,7 @@ export function ImportPlaylistDialog({
                     </DialogTitle>
                     <DialogDescription>
                         Paste a YouTube playlist URL to import all video metadata.
-                        Imported playlists can be used to generate highly curated AI recommendations.
+                        Imported playlists can be remixed, synced, and turned into guided learning paths.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -162,7 +162,7 @@ export function ImportPlaylistDialog({
                     </Button>
 
                     <p className="text-xs text-muted-foreground text-center">
-                        We'll securely sync this playlist so you can immediately base new AI searches off of it.
+                        We'll pull this playlist into PromptPlay so you can remix it, maintain it, and structure it into a reusable path.
                     </p>
                 </div>
             </DialogContent>

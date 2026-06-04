@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
@@ -70,13 +69,7 @@ async function getUserId(authHeader: string | null): Promise<string | null> {
   }
 }
 
-/** Check daily AI-generated playlist count for a user.
- *
- * WARNING-9: Filters by source='ai_generate' so imports don't count against the limit.
- * NOTE: Requires a DB migration to add `source varchar default 'ai_generate'` to
- * `generated_playlists`. Until that migration runs, this filter returns 0 rows
- * (no records match), effectively giving everyone unlimited AI generations.
- */
+/** Check daily AI-assisted playlist count for a user. Imports do not count. */
 async function getDailyCount(userId: string): Promise<number> {
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -89,7 +82,7 @@ async function getDailyCount(userId: string): Promise<number> {
     .from('generated_playlists')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
-    .eq('source', 'ai_generate') // WARNING-9: only count AI-generated playlists
+    .in('source', ['ai_generate', 'playlist_remix'])
     .gte('created_at', today.toISOString());
 
   return count || 0;

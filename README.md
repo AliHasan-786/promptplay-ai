@@ -1,102 +1,127 @@
-# Promptplay — AI YouTube Playlist Generator
+# PromptPlay
 
-Describe any content — music, tutorials, reviews, podcasts — and Promptplay finds the best YouTube videos, assembles them into a playlist, and exports directly to your YouTube account.
+PromptPlay turns YouTube prompts and playlists into a usable library:
 
-**[Live Demo →] https://promptplay-ai.vercel.app/
+- generate a curated playlist from a prompt
+- import an existing YouTube playlist
+- remix a saved playlist into new recommendations
+- export playlists back to YouTube
+- structure tutorial or research playlists into guided learning paths
+- sync imported/exported playlists to detect deleted or private videos
 
----
+This is no longer just a flat “AI playlist maker.” The product direction is `YouTube learning and curation infrastructure`: import, organize, maintain, and reuse video collections over time.
 
-## Features
-
-- **AI-Powered Search** — Describe what you want in natural language and get curated YouTube results
-- **Export to YouTube** — One click creates a real playlist on your YouTube account
-- **Import Playlists** — Import existing YouTube playlists for backup and management
-- **Smart Deduplication** — No duplicate videos across generated results
-- **Auto-Refreshing Auth** — YouTube connection stays alive across sessions
-
-## Tech Stack
+## Stack
 
 | Layer | Technology |
-|-------|-----------|
-| **Frontend** | React 18, TypeScript, Tailwind CSS, shadcn/ui |
-| **Backend** | Supabase (Auth, PostgreSQL, Edge Functions) |
-| **AI** | LLM API (GPT-4o-mini) for search query generation |
-| **APIs** | YouTube Data API v3 (search, playlists, import) |
-| **Deployment** | Vercel (frontend), Supabase Cloud (backend) |
+| --- | --- |
+| Frontend | React 18, TypeScript, Vite, Tailwind, shadcn/ui |
+| Auth | Firebase Google popup + Supabase session sync |
+| Backend | Supabase Postgres + Edge Functions |
+| AI | OpenAI-compatible chat completion endpoint |
+| External APIs | YouTube Data API v3 |
 
-## Architecture
+## Core Flows
 
-```
-┌─────────────────┐     ┌──────────────────────┐     ┌──────────────┐
-│   React App     │────▶│  Supabase Edge Fns   │────▶│  YouTube API │
-│  (Vite + TS)    │     │  • generate-playlist  │     │  • Search    │
-│                 │     │  • youtube-auth       │     │  • Playlists │
-│  Components:    │     │  • youtube-create     │     │  • Import    │
-│  • ChatInterface│     │  • youtube-import     │     └──────────────┘
-│  • Dashboard    │     └──────────┬───────────┘
-│  • ExportBar    │                │              ┌──────────────┐
-└─────────────────┘                └─────────────▶│  LLM API     │
-                                                  │  (GPT-4o-mini)│
-                                                  └──────────────┘
-```
+1. `generate-playlist`
+   Expands a prompt into curated YouTube search queries and returns unique videos.
+2. `save-generated-playlist`
+   Persists generated or remixed playlists server-side, including video metadata and playlist items.
+3. `youtube-import-playlist`
+   Imports an existing YouTube playlist into PromptPlay and preserves unavailable videos.
+4. `build-learning-path`
+   Turns a flat playlist into ordered modules with goals, outcomes, and watch-order rationale.
+5. `sync-playlist`
+   Refreshes playlist availability against YouTube so deleted/private items are visible.
+6. `youtube-create-playlist`
+   Exports a saved PromptPlay playlist back to YouTube and records the linked YouTube playlist id.
 
-## Getting Started
+## Local Setup
 
 ### Prerequisites
 
 - Node.js 18+
-- Supabase account with project
-- YouTube Data API key
-- Google OAuth 2.0 credentials
-- LLM API key
+- A Supabase project
+- A Firebase project with Google Auth enabled
+- A YouTube Data API key
+- An OpenAI-compatible LLM API key
 
-### Setup
+### Frontend Environment
+
+Create `.env.local` from `.env.example` and fill in the `VITE_*` variables:
 
 ```bash
-# Clone and install
-git clone https://github.com/AliHasan-786/promptplay-ai.git
-cd promptplay-ai
+cp .env.example .env.local
 npm install
-
-# Run locally
 npm run dev
 ```
 
-### Environment Variables
+### Supabase Secrets
 
-Set these as **Supabase Secrets** (not `.env`):
+Set these in Supabase Edge Function secrets:
 
-| Secret | Description |
-|--------|-------------|
+| Secret | Purpose |
+| --- | --- |
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_ANON_KEY` | Supabase anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Required for server-owned playlist persistence |
 | `YOUTUBE_API_KEY` | YouTube Data API v3 key |
-| `GOOGLE_CLIENT_ID` | OAuth 2.0 Web Client ID |
-| `GOOGLE_CLIENT_SECRET` | OAuth 2.0 Client Secret |
-| `LLMAPI_KEY` | LLM provider API key |
-| `LLMAPI_BASE_URL` | LLM API endpoint (optional) |
-| `LLMAPI_MODEL` | LLM model name (default: gpt-4o-mini) |
+| `LLMAPI_KEY` | LLM provider key |
+| `LLMAPI_BASE_URL` | Optional OpenAI-compatible endpoint override |
+| `LLMAPI_MODEL` | Optional model override, defaults to `gpt-4o-mini` |
+| `CORS_ORIGIN` | Optional allowed origin for edge functions |
 
 ### Deploy Edge Functions
 
 ```bash
-npx supabase functions deploy generate-playlist --no-verify-jwt
-npx supabase functions deploy youtube-auth --no-verify-jwt
-npx supabase functions deploy youtube-create-playlist --no-verify-jwt
-npx supabase functions deploy youtube-import-playlist --no-verify-jwt
+npx supabase functions deploy generate-playlist
+npx supabase functions deploy save-generated-playlist
+npx supabase functions deploy build-learning-path
+npx supabase functions deploy sync-playlist
+npx supabase functions deploy youtube-import-playlist
+npx supabase functions deploy youtube-create-playlist
 ```
 
-### Deploy Frontend
+### Database
+
+Run the checked-in migrations, including the latest trust + learning-path migration:
 
 ```bash
-npm run build
-npx vercel --prod
+npx supabase db push
 ```
 
-## Safety & Rate Limiting
+## Firebase / Google Auth
 
-- **Rate limited** to 15 playlist generations per user per day
-- **Content filter** refuses prompts requesting violent, sexual, or hateful content
-- **Off-topic detection** guides users back to video search for non-video queries
-- YouTube's own Trust & Safety filters all surfaced content
+PromptPlay signs users in with Firebase on the client, then exchanges the Google ID token into a Supabase session with `signInWithIdToken`.
+
+Use [GOOGLE_OAUTH_SETUP.md](./GOOGLE_OAUTH_SETUP.md) for the exact Firebase + Google setup.
+
+## Quality Gates
+
+```bash
+npm run lint
+npm run typecheck
+npm run check
+```
+
+## Product Direction
+
+The strongest wedge for PromptPlay is not generic music prompts. It is:
+
+`import any YouTube playlist or topic and turn it into a durable, structured learning or research path`
+
+That wedge matters because PromptPlay can:
+
+- sequence videos across multiple creators
+- preserve deleted/private items as part of the record
+- remix existing collections into adjacent recommendations
+- keep the library useful after YouTube changes underneath it
+
+## Current Limits
+
+- YouTube access currently depends on the user’s active sign-in session in the app.
+- The app does not yet run unattended background refresh jobs.
+- Playlist quality still depends on titles/channels rather than transcript-level understanding.
 
 ## License
 

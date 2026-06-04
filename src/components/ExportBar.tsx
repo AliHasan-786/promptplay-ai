@@ -24,10 +24,10 @@ export function ExportBar({
               {providerToken ? (
                 <span className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-green-400" />
-                  YouTube connected
+                  YouTube connected for import, export, and sync
                 </span>
               ) : (
-                <span>Connect YouTube to export & import playlists</span>
+                <span>Connect YouTube to import playlists, export them back, and keep them synced</span>
               )}
             </div>
 

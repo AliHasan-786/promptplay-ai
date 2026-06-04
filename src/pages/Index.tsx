@@ -39,7 +39,7 @@ const Index = () => {
           {!authLoading && !user && (
             <div className="text-center animate-fade-in">
               <p className="text-muted-foreground mb-3">
-                Sign in to start generating AI-powered playlists
+                Sign in to generate playlists, remix collections, and build guided YouTube learning paths
               </p>
               <button
                 onClick={() => navigate("/auth")}

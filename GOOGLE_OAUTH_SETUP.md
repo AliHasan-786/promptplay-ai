@@ -1,111 +1,130 @@
-# Google OAuth Setup Guide
+# Google / Firebase Auth Setup
 
-This guide will help you set up Google OAuth credentials for YouTube API access.
+PromptPlay uses this auth chain:
 
-## Step 1: Create Google OAuth Credentials
+1. the user signs in with Google through Firebase on the client
+2. Firebase returns a Google ID token and access token
+3. the app exchanges the ID token into a Supabase session with `signInWithIdToken`
+4. the Google access token is used for YouTube import/export/sync calls during the session
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select an existing one
-3. Enable the **YouTube Data API v3**:
-   - Navigate to "APIs & Services" > "Library"
-   - Search for "YouTube Data API v3"
-   - Click "Enable"
+This means you need both Firebase client config and Google API access.
 
-4. Create OAuth 2.0 credentials:
-   - Go to "APIs & Services" > "Credentials"
-   - Click "Create Credentials" > "OAuth client ID"
-   - If prompted, configure the OAuth consent screen first:
-     - Choose "External" (unless you have a Google Workspace)
-     - Fill in the required fields (App name, User support email, Developer contact)
-     - Add scopes: `https://www.googleapis.com/auth/youtube`
-     - Add test users if your app is in testing mode
-   - For Application type, select "Web application"
-   - Add Authorized redirect URIs:
-     - For local development: `http://localhost:5173/` (or your local port)
-     - For production: `https://your-domain.com/`
-     - **Important**: The redirect URI must match exactly what your app uses (currently `${window.location.origin}/`)
+## 1. Create or Open a Firebase Project
 
-5. Copy your **Client ID** and **Client Secret**
+1. Go to [Firebase Console](https://console.firebase.google.com/).
+2. Create a project or open an existing one.
+3. Add a Web app.
+4. Copy the Firebase web config values for:
+   - `apiKey`
+   - `authDomain`
+   - `projectId`
+   - `storageBucket`
+   - `messagingSenderId`
+   - `appId`
+   - `measurementId` if present
 
-## Step 2: Set Environment Variables in Supabase
+Put those into `.env.local` using `.env.example`.
 
-### Option A: Using Supabase Dashboard (Recommended for Production)
+## 2. Enable Google Sign-In in Firebase Auth
 
-1. Go to your [Supabase Dashboard](https://supabase.com/dashboard)
-2. Select your project
-3. Navigate to "Project Settings" > "Edge Functions" > "Secrets"
-4. Add the following secrets:
-   - `GOOGLE_CLIENT_ID` - Your Google OAuth Client ID
-   - `GOOGLE_CLIENT_SECRET` - Your Google OAuth Client Secret
+1. In Firebase Console, open `Authentication`.
+2. Enable the `Google` provider.
+3. Add your local and production domains to `Authorized domains`.
 
-### Option B: Using Supabase CLI (For Local Development)
+## 3. Enable the YouTube Data API
 
-1. Install Supabase CLI if you haven't: `npm install -g supabase`
-2. Login: `supabase login`
-3. Link your project: `supabase link --project-ref YOUR_PROJECT_REF`
-4. Set secrets:
-   ```bash
-   supabase secrets set GOOGLE_CLIENT_ID=your_client_id_here
-   supabase secrets set GOOGLE_CLIENT_SECRET=your_client_secret_here
-   ```
+1. Go to [Google Cloud Console](https://console.cloud.google.com/).
+2. Make sure it is the same project used by Firebase, or a project whose credentials you control.
+3. Enable `YouTube Data API v3`.
+4. Create an API key for server-side YouTube search.
+5. Restrict the key appropriately before production.
 
-## Step 3: Deploy/Update Edge Function
+Store the API key in Supabase secrets as:
 
-If you're using Supabase CLI:
 ```bash
-supabase functions deploy youtube-auth
+supabase secrets set YOUTUBE_API_KEY=your_key_here
 ```
 
-If you're using the dashboard, the function should automatically update when you push changes.
+## 4. Frontend Env Vars
 
-## Step 4: Verify Setup
+Set these in `.env.local`:
 
-1. Make sure your redirect URI in Google Cloud Console matches your app's origin
-2. Test the OAuth flow in your application
-3. Check the Supabase Edge Function logs if you encounter issues
+```bash
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your_publishable_key
+
+VITE_FIREBASE_API_KEY=your_firebase_api_key
+VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
+VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
+```
+
+## 5. Supabase Secrets
+
+Set these for edge functions:
+
+```bash
+supabase secrets set \
+  SUPABASE_URL=https://your-project.supabase.co \
+  SUPABASE_ANON_KEY=your_anon_key \
+  SUPABASE_SERVICE_ROLE_KEY=your_service_role_key \
+  YOUTUBE_API_KEY=your_youtube_api_key \
+  LLMAPI_KEY=your_llm_key
+```
+
+Optional:
+
+```bash
+supabase secrets set \
+  LLMAPI_BASE_URL=https://your-provider.example/v1/chat/completions \
+  LLMAPI_MODEL=gpt-4o-mini \
+  CORS_ORIGIN=http://localhost:5173
+```
+
+## 6. Local Verification
+
+1. Start the app:
+
+```bash
+npm install
+npm run dev
+```
+
+2. Sign in with Google.
+3. Generate a playlist.
+4. Save it.
+5. Import or export a playlist to verify YouTube access.
 
 ## Troubleshooting
 
-### Error: "OAuth client was not found" (401: invalid_client)
-- **Cause**: The Client ID is incorrect or not set. This usually happens when you copy the Client Secret instead of the Client ID, or create a non-Web OAuth client.
-- **Solution**:
-  - Make sure you created a **Web application** OAuth client in Google Cloud Console (the Client ID should end with `.apps.googleusercontent.com`)
-  - Copy the **Client ID** (not the secret) and set it in Supabase secrets without quotes or spaces:
-    ```bash
-    supabase secrets set GOOGLE_CLIENT_ID=your_client_id_here GOOGLE_CLIENT_SECRET=your_client_secret_here
-    ```
-  - Redeploy the function so it picks up the updated secrets:
-    ```bash
-    supabase functions deploy youtube-auth
-    ```
+### `Authentication failed`
 
-### Error: "redirect_uri_mismatch"
-- **Cause**: The redirect URI doesn't match what's configured in Google Cloud Console
-- **Solution**: Add your app's origin (e.g., `http://localhost:5173/` or `https://your-domain.com/`) to Authorized redirect URIs in Google Cloud Console
+- Check the Firebase config values in `.env.local`.
+- Make sure Google Sign-In is enabled in Firebase Authentication.
+- Confirm your local domain is listed in Firebase authorized domains.
 
-### Error: "Google OAuth credentials not configured"
-- **Cause**: Environment variables are not set in Supabase
-- **Solution**: Set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in Supabase secrets
+### `YouTube access token required`
 
-## How to test the OAuth flow
+- The Google session likely expired.
+- Sign out, then sign back in.
 
-1. Quick sanity check (no browser):
-   ```bash
-   supabase functions invoke youtube-auth \
-     --project-ref <YOUR_PROJECT_REF> \
-     --no-verify-jwt \
-     --body '{"action":"get_auth_url","redirectUri":"http://localhost:5173/"}'
-   ```
-   - Confirm the returned `authUrl` has your Client ID and the expected redirect URI.
+### `AI service not configured`
 
-2. End-to-end browser test:
-   - Start the app locally: `npm install && npm run dev`
-   - Visit `http://localhost:5173/`, click "Connect YouTube", sign in, and ensure you are redirected back without the Google error page.
-   - If you still see `invalid_client`, re-check that the Client ID is the web client ID and matches the value in Supabase secrets.
+- Set `LLMAPI_KEY` in Supabase secrets.
 
-## Important Notes
+### `YouTube API not configured`
 
-- Never commit your Client ID or Client Secret to version control
-- The redirect URI must include the trailing slash if your app uses it
-- For local development, use `http://localhost:PORT/` (replace PORT with your dev server port)
-- For production, use your actual domain with the protocol (https://)
+- Set `YOUTUBE_API_KEY` in Supabase secrets.
+
+### `Sign in required to generate playlists`
+
+- The Supabase session exchange did not complete.
+- Check that `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are correct.
+
+## Notes
+
+- The current app keeps YouTube access tied to the active sign-in session.
+- Background token refresh and unattended sync are future enhancements, not current behavior.

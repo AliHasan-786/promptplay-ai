@@ -61,12 +61,12 @@ export default function Auth() {
               PromptPlay
             </h1>
             <p className="text-lg text-muted-foreground font-medium mb-2">
-              Generate YouTube playlists from a single prompt
+              Build smarter YouTube playlists and guided learning paths
             </p>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              Describe any content — music, tutorials, podcasts, reviews — and PromptPlay
-              finds the best YouTube videos and builds a playlist instantly. Import your
-              existing playlists to generate AI-powered recommendations.
+              Describe a topic, import an existing playlist, or remix what you already save.
+              PromptPlay helps you turn flat video lists into curated collections you can
+              export, maintain, and structure into guided paths.
             </p>
           </div>
 
@@ -97,7 +97,7 @@ export default function Auth() {
 
             <p className="text-xs text-muted-foreground text-center">
               Signing in connects your Google account and grants YouTube access so you can
-              import and export playlists directly.
+              import, export, sync, and maintain playlists directly.
             </p>
           </div>
 

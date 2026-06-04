@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
@@ -135,8 +134,7 @@ serve(async (req) => {
 
         console.log(`Fetched ${allItems.length} items from playlist "${playlistTitle}"`);
 
-        // Create playlist in Supabase
-        // WARNING-9: set source: 'import' so AI rate limit only counts 'ai_generate' playlists
+        // Create playlist in Supabase.
         const { data: playlist, error: insertError } = await supabase
             .from('generated_playlists')
             .insert({
@@ -144,6 +142,7 @@ serve(async (req) => {
                 prompt_text: playlistTitle,
                 youtube_playlist_id: playlistId,
                 source: 'import',
+                last_synced_at: new Date().toISOString(),
             })
             .select()
             .single();
@@ -156,52 +155,63 @@ serve(async (req) => {
             );
         }
 
-        // CRITICAL-1: Insert into videos + playlist_items (replacing playlist_songs)
         let activeCount = 0;
         let deletedCount = 0;
         let privateCount = 0;
 
         const validItems = allItems.filter(item => item.snippet?.resourceId?.videoId);
+        const videosToUpsert: Array<Record<string, unknown>> = [];
+        const playlistItemsToInsert: Array<Record<string, unknown>> = [];
 
         for (let i = 0; i < validItems.length; i++) {
             const item = validItems[i];
             const videoId = item.snippet.resourceId.videoId;
             const privacyStatus = item.status?.privacyStatus;
-            const isActive = privacyStatus !== 'private' && privacyStatus !== 'privacyStatusUnspecified';
+            const isPrivate = privacyStatus === 'private';
+            const isDeleted = privacyStatus === 'privacyStatusUnspecified';
+            const itemStatus = isPrivate ? 'private' : (isDeleted ? 'deleted' : 'active');
             const thumbnailUrl = item.snippet.thumbnails?.medium?.url ||
                 item.snippet.thumbnails?.default?.url || '';
 
-            if (privacyStatus === 'private') privateCount++;
-            else if (privacyStatus === 'privacyStatusUnspecified') deletedCount++;
+            if (isPrivate) privateCount++;
+            else if (isDeleted) deletedCount++;
             else activeCount++;
 
-            // CRITICAL-1: Upsert into videos table — shared across playlists
+            videosToUpsert.push({
+                youtube_video_id: videoId,
+                title: decodeHtml(item.snippet.title || 'Unknown'),
+                channel_name: decodeHtml(item.snippet.videoOwnerChannelTitle || item.snippet.channelTitle || 'Unknown'),
+                thumbnail_url: thumbnailUrl || null,
+                privacy_status: isPrivate ? 'private' : (isDeleted ? 'deleted' : 'public'),
+            });
+
+            playlistItemsToInsert.push({
+                playlist_id: playlist.id,
+                youtube_video_id: videoId,
+                position: i,
+                status: itemStatus,
+            });
+        }
+
+        if (videosToUpsert.length > 0) {
             const { error: videoError } = await supabase
                 .from('videos')
-                .upsert({
-                    youtube_video_id: videoId,
-                    title: decodeHtml(item.snippet.title || 'Unknown'),
-                    channel_name: decodeHtml(item.snippet.videoOwnerChannelTitle || 'Unknown'),
-                    thumbnail_url: thumbnailUrl,
-                    privacy_status: isActive ? 'public' : privacyStatus,
-                }, { onConflict: 'youtube_video_id' });
+                .upsert(videosToUpsert, { onConflict: 'youtube_video_id' });
 
             if (videoError) {
-                console.error('Video upsert error:', videoError);
+                await supabase.from('generated_playlists').delete().eq('id', playlist.id);
+                throw videoError;
             }
+        }
 
-            // CRITICAL-1: Insert into playlist_items
+        if (playlistItemsToInsert.length > 0) {
             const { error: itemError } = await supabase
                 .from('playlist_items')
-                .insert({
-                    playlist_id: playlist.id,
-                    youtube_video_id: videoId,
-                    position: i,
-                    status: isActive ? 'active' : (privacyStatus === 'private' ? 'private' : 'deleted'),
-                });
+                .insert(playlistItemsToInsert);
 
             if (itemError) {
-                console.error('Playlist item insert error:', itemError);
+                await supabase.from('generated_playlists').delete().eq('id', playlist.id);
+                throw itemError;
             }
         }
 

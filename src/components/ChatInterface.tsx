@@ -125,68 +125,20 @@ export function ChatInterface({ authToken, onPlaylistCreated }: ChatInterfacePro
         setSavingPlaylist(messageId);
 
         try {
-            const { data: { user }, error: userError } = await supabase.auth.getUser();
-            if (userError || !user) throw new Error("You must be signed in to save playlists.");
-
             const msgIndex = messages.findIndex(m => m.id === messageId);
             const promptMsg = messages.slice(0, msgIndex).reverse().find(m => m.role === "user");
             const promptText = promptMsg?.content || "Untitled Playlist";
 
-            // Create the playlist
-            const { data: playlist, error: playlistError } = await supabase
-                .from("generated_playlists")
-                .insert({
-                    user_id: user.id,
-                    prompt_text: promptText,
-                })
-                .select()
-                .single();
+            const { data, error } = await supabase.functions.invoke("save-generated-playlist", {
+                body: {
+                    prompt: promptText,
+                    source: "ai_generate",
+                    videos,
+                },
+            });
 
-            if (playlistError) {
-                console.error("Playlist insert error:", playlistError);
-                throw new Error(playlistError.message);
-            }
-
-            // Upsert video metadata into the shared videos table
-            const videosToUpsert = videos
-                .filter(v => v.youtube_id)
-                .map(v => ({
-                    youtube_video_id: v.youtube_id!,
-                    title: v.title,
-                    channel_name: v.creator,
-                    description: "",
-                    thumbnail_url: v.thumbnail || "",
-                }));
-
-            if (videosToUpsert.length > 0) {
-                const { error: videosError } = await supabase
-                    .from("videos")
-                    .upsert(videosToUpsert, { onConflict: "youtube_video_id" });
-                if (videosError) {
-                    console.error("Videos upsert error:", videosError);
-                    throw new Error(videosError.message);
-                }
-            }
-
-            // Insert playlist_items linking the playlist to each video
-            const itemsToInsert = videos
-                .filter(v => v.youtube_id)
-                .map((v, idx) => ({
-                    playlist_id: playlist.id,
-                    youtube_video_id: v.youtube_id!,
-                    position: idx,
-                    status: "active",
-                }));
-
-            if (itemsToInsert.length > 0) {
-                const { error: itemsError } = await supabase
-                    .from("playlist_items")
-                    .insert(itemsToInsert);
-                if (itemsError) {
-                    console.error("Items insert error:", itemsError);
-                    throw new Error(itemsError.message);
-                }
-            }
+            if (data?.error) throw new Error(data.error);
+            if (error) throw error;
 
             setSavedPlaylists(prev => new Set(prev).add(messageId));
 
@@ -195,7 +147,7 @@ export function ChatInterface({ authToken, onPlaylistCreated }: ChatInterfacePro
                 description: `"${promptText}" — ${videos.length} videos saved to your library.`,
             });
 
-            onPlaylistCreated?.(playlist.id);
+            onPlaylistCreated?.(data.playlist_id);
         } catch (error) {
             console.error("Save error:", error);
             toast({
@@ -218,6 +170,7 @@ export function ChatInterface({ authToken, onPlaylistCreated }: ChatInterfacePro
     const placeholders = [
         "Relaxing video game soundtracks for studying...",
         "Best React tutorials for beginners...",
+        "A practical YouTube learning path for mastering SQL analytics...",
         "Epic orchestral music like Two Steps from Hell...",
         "Top tech reviews of 2025...",
         "Chill lo-fi beats for late night coding...",
@@ -238,8 +191,8 @@ export function ChatInterface({ authToken, onPlaylistCreated }: ChatInterfacePro
                             What do you want to <span className="text-red-500">find?</span>
                         </h2>
                         <p className="text-muted-foreground max-w-md mx-auto mb-6">
-                            Describe any YouTube content — music, tutorials, reviews, podcasts —
-                            and I'll find the best videos for you.
+                            Describe a topic, creator mix, or learning goal and PromptPlay
+                            will find the best YouTube videos to start your collection.
                         </p>
 
                         {/* How it works */}

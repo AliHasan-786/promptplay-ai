@@ -19,6 +19,7 @@ export type Database = {
           created_at: string
           id: string
           prompt_text: string
+          source: string
           user_id: string
           youtube_playlist_id: string | null
           semantic_topic: string | null
@@ -28,6 +29,7 @@ export type Database = {
           created_at?: string
           id?: string
           prompt_text: string
+          source?: string
           user_id: string
           youtube_playlist_id?: string | null
           semantic_topic?: string | null
@@ -37,12 +39,60 @@ export type Database = {
           created_at?: string
           id?: string
           prompt_text?: string
+          source?: string
           user_id?: string
           youtube_playlist_id?: string | null
           semantic_topic?: string | null
           last_synced_at?: string | null
         }
         Relationships: []
+      }
+      playlist_learning_paths: {
+        Row: {
+          created_at: string
+          difficulty: string | null
+          estimated_minutes: number | null
+          learning_objectives: Json
+          modules: Json
+          playlist_id: string
+          summary: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          difficulty?: string | null
+          estimated_minutes?: number | null
+          learning_objectives?: Json
+          modules?: Json
+          playlist_id: string
+          summary: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          difficulty?: string | null
+          estimated_minutes?: number | null
+          learning_objectives?: Json
+          modules?: Json
+          playlist_id?: string
+          summary?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "playlist_learning_paths_playlist_id_fkey"
+            columns: ["playlist_id"]
+            isOneToOne: true
+            referencedRelation: "generated_playlists"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       playlist_items: {
         Row: {
@@ -151,6 +201,7 @@ export type Database = {
           title: string
           channel_name: string | null
           description: string | null
+          privacy_status: string
           thumbnail_url: string | null
           duration: string | null
           created_at: string
@@ -162,6 +213,7 @@ export type Database = {
           title: string
           channel_name?: string | null
           description?: string | null
+          privacy_status?: string
           thumbnail_url?: string | null
           duration?: string | null
           created_at?: string
@@ -173,6 +225,7 @@ export type Database = {
           title?: string
           channel_name?: string | null
           description?: string | null
+          privacy_status?: string
           thumbnail_url?: string | null
           duration?: string | null
           created_at?: string
