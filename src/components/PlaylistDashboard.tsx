@@ -3,8 +3,12 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Copy,
   ExternalLink,
+  Eye,
+  Globe,
   ListMusic,
+  Lock,
   Loader2,
   Play,
   RefreshCw,
@@ -16,12 +20,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LearningPathPanel } from "@/components/LearningPathPanel";
+import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { buildPublicPlaylistSlug, normalizeLearningPath } from "@/lib/playlist-utils";
 import type { LearningPathRecord } from "@/types/learning-path";
 
 type PlaylistSource = "ai_generate" | "playlist_remix" | "import";
 type PlaylistItemStatus = "active" | "deleted" | "private";
+type PlaylistVisibility = "private" | "public";
 
 interface PlaylistSong {
   id: string;
@@ -36,6 +43,10 @@ interface PlaylistRecord {
   id: string;
   prompt_text: string;
   source: PlaylistSource;
+  visibility: PlaylistVisibility;
+  public_slug: string | null;
+  public_description: string | null;
+  published_at: string | null;
   youtube_playlist_id: string | null;
   created_at: string;
   songs: PlaylistSong[];
@@ -61,43 +72,6 @@ const sourceBadgeClass: Record<PlaylistSource, string> = {
   import: "border-sky-400/30 bg-sky-400/10 text-sky-300",
 };
 
-function normalizeLearningPath(raw: Record<string, unknown>): LearningPathRecord {
-  return {
-    playlist_id: String(raw.playlist_id || ""),
-    title: String(raw.title || "Learning Path"),
-    summary: String(raw.summary || "Structured from your playlist."),
-    estimated_minutes: typeof raw.estimated_minutes === "number" ? raw.estimated_minutes : null,
-    difficulty: ["beginner", "intermediate", "advanced", "mixed"].includes(String(raw.difficulty))
-      ? (raw.difficulty as LearningPathRecord["difficulty"])
-      : null,
-    learning_objectives: Array.isArray(raw.learning_objectives)
-      ? raw.learning_objectives.filter((objective): objective is string => typeof objective === "string")
-      : [],
-    modules: Array.isArray(raw.modules)
-      ? raw.modules.map((module) => {
-          const moduleRecord = module as Record<string, unknown>;
-          return {
-            title: String(moduleRecord.title || "Module"),
-            goal: String(moduleRecord.goal || "Build understanding for this stage."),
-            outcome: String(moduleRecord.outcome || "You leave this stage with stronger context."),
-            videos: Array.isArray(moduleRecord.videos)
-              ? moduleRecord.videos.map((video) => {
-                  const videoRecord = video as Record<string, unknown>;
-                  return {
-                    youtube_video_id: String(videoRecord.youtube_video_id || ""),
-                    title: String(videoRecord.title || "Untitled video"),
-                    channel_name: typeof videoRecord.channel_name === "string" ? videoRecord.channel_name : null,
-                    reason: String(videoRecord.reason || "Fits this stage of the path."),
-                  };
-                }).filter((video) => video.youtube_video_id)
-              : [],
-          };
-        }).filter((module) => module.videos.length > 0)
-      : [],
-    updated_at: String(raw.updated_at || new Date().toISOString()),
-  };
-}
-
 export function PlaylistDashboard({
   authToken,
   providerToken,
@@ -111,6 +85,7 @@ export function PlaylistDashboard({
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [buildingPathId, setBuildingPathId] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
 
   const fetchPlaylists = async () => {
     if (!authToken) return;
@@ -122,7 +97,7 @@ export function PlaylistDashboard({
 
       const { data: playlistData, error: playlistError } = await supabase
         .from("generated_playlists")
-        .select("id, prompt_text, source, youtube_playlist_id, created_at")
+        .select("id, prompt_text, source, visibility, public_slug, public_description, published_at, youtube_playlist_id, created_at")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
@@ -190,6 +165,10 @@ export function PlaylistDashboard({
           id: playlist.id,
           prompt_text: playlist.prompt_text,
           source: (playlist.source as PlaylistSource) || "ai_generate",
+          visibility: (playlist.visibility as PlaylistVisibility) || "private",
+          public_slug: playlist.public_slug,
+          public_description: playlist.public_description,
+          published_at: playlist.published_at,
           youtube_playlist_id: playlist.youtube_playlist_id,
           created_at: playlist.created_at,
           songs: itemsByPlaylist[playlist.id] || [],
@@ -205,6 +184,128 @@ export function PlaylistDashboard({
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDescriptionChange = (playlistId: string, value: string) => {
+    setPlaylists((prev) =>
+      prev.map((playlist) =>
+        playlist.id === playlistId
+          ? { ...playlist, public_description: value }
+          : playlist,
+      ),
+    );
+  };
+
+  const getPublicUrl = (playlist: PlaylistRecord) => {
+    if (!playlist.public_slug || typeof window === "undefined") return null;
+    return `${window.location.origin}/p/${playlist.public_slug}`;
+  };
+
+  const handlePublishPlaylist = async (playlist: PlaylistRecord) => {
+    setPublishingId(playlist.id);
+
+    try {
+      const publicSlug = playlist.public_slug || buildPublicPlaylistSlug(playlist.prompt_text, playlist.id);
+      const publishedAt = playlist.published_at || new Date().toISOString();
+      const publicDescription = playlist.public_description?.trim() || null;
+
+      const { error } = await supabase
+        .from("generated_playlists")
+        .update({
+          visibility: "public",
+          public_slug: publicSlug,
+          public_description: publicDescription,
+          published_at: publishedAt,
+        })
+        .eq("id", playlist.id);
+
+      if (error) throw error;
+
+      setPlaylists((prev) =>
+        prev.map((entry) =>
+          entry.id === playlist.id
+            ? {
+                ...entry,
+                visibility: "public",
+                public_slug: publicSlug,
+                public_description: publicDescription,
+                published_at: publishedAt,
+              }
+            : entry,
+        ),
+      );
+
+      toast({
+        title: playlist.visibility === "public" ? "Public page updated" : "Public page published",
+        description: "Anyone with the link can now preview and save this path.",
+      });
+    } catch (error) {
+      console.error("Publish error:", error);
+      toast({
+        title: "Publish failed",
+        description: error instanceof Error ? error.message : "Could not publish this page.",
+        variant: "destructive",
+      });
+    } finally {
+      setPublishingId(null);
+    }
+  };
+
+  const handleUnpublishPlaylist = async (playlistId: string) => {
+    setPublishingId(playlistId);
+
+    try {
+      const { error } = await supabase
+        .from("generated_playlists")
+        .update({
+          visibility: "private",
+          published_at: null,
+        })
+        .eq("id", playlistId);
+
+      if (error) throw error;
+
+      setPlaylists((prev) =>
+        prev.map((playlist) =>
+          playlist.id === playlistId
+            ? { ...playlist, visibility: "private", published_at: null }
+            : playlist,
+        ),
+      );
+
+      toast({
+        title: "Public page unpublished",
+        description: "The shared link is no longer publicly accessible.",
+      });
+    } catch (error) {
+      console.error("Unpublish error:", error);
+      toast({
+        title: "Unpublish failed",
+        description: error instanceof Error ? error.message : "Could not unpublish this page.",
+        variant: "destructive",
+      });
+    } finally {
+      setPublishingId(null);
+    }
+  };
+
+  const handleCopyLink = async (playlist: PlaylistRecord) => {
+    const publicUrl = getPublicUrl(playlist);
+    if (!publicUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      toast({
+        title: "Link copied",
+        description: "Your public page URL is ready to share.",
+      });
+    } catch (error) {
+      toast({
+        title: "Copy failed",
+        description: error instanceof Error ? error.message : "Could not copy the public link.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -470,7 +571,9 @@ export function PlaylistDashboard({
           const isGenerating = generatingId === playlist.id;
           const isBuildingPath = buildingPathId === playlist.id;
           const isSyncing = syncingId === playlist.id;
+          const isPublishing = publishingId === playlist.id;
           const ghostCount = playlist.songs.filter((song) => song.status !== "active").length;
+          const publicUrl = getPublicUrl(playlist);
 
           return (
             <div key={playlist.id} className="overflow-hidden rounded-2xl glass animate-fade-in">
@@ -506,6 +609,11 @@ export function PlaylistDashboard({
                       {playlist.youtube_playlist_id && (
                         <Badge variant="outline" className="border-red-500/30 bg-red-500/10 text-red-300">
                           On YouTube
+                        </Badge>
+                      )}
+                      {playlist.visibility === "public" && (
+                        <Badge variant="outline" className="border-emerald-400/30 bg-emerald-400/10 text-emerald-300">
+                          Public
                         </Badge>
                       )}
                     </div>
@@ -620,6 +728,82 @@ export function PlaylistDashboard({
                       {ghostCount} videos are currently marked as deleted or private. PromptPlay keeps them in the record so your playlist history and learning path stay intact.
                     </div>
                   )}
+
+                  <div className="border-b border-border/50 px-4 py-4">
+                    <div className="rounded-2xl border border-border/60 bg-background/40 p-4">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                              {playlist.visibility === "public" ? <Globe className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-semibold text-foreground">
+                                {playlist.learning_path ? "Public path page" : "Public playlist page"}
+                              </h4>
+                              <p className="text-sm text-muted-foreground">
+                                {playlist.visibility === "public"
+                                  ? "This page is live. People can preview it, save their own copy, and open the videos directly."
+                                  : "Publish this collection to create a shareable PromptPlay page for friends, teams, or communities."}
+                              </p>
+                            </div>
+                          </div>
+
+                          <Textarea
+                            value={playlist.public_description || ""}
+                            onChange={(event) => handleDescriptionChange(playlist.id, event.target.value)}
+                            placeholder={playlist.learning_path
+                              ? "Optional intro for visitors. Explain who this path is for and why it is worth following."
+                              : "Optional intro for visitors. Explain what this playlist covers and why you curated it."}
+                            className="min-h-24 border-border/60 bg-background/60"
+                          />
+                        </div>
+
+                        <div className="flex w-full flex-col gap-2 lg:max-w-xs">
+                          <Button
+                            onClick={() => handlePublishPlaylist(playlist)}
+                            disabled={isPublishing}
+                            className="gap-2"
+                          >
+                            {isPublishing ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Globe className="h-4 w-4" />
+                            )}
+                            {playlist.visibility === "public" ? "Update public page" : "Publish page"}
+                          </Button>
+
+                          {playlist.visibility === "public" && publicUrl && (
+                            <>
+                              <Button
+                                variant="outline"
+                                onClick={() => handleCopyLink(playlist)}
+                                className="gap-2"
+                              >
+                                <Copy className="h-4 w-4" />
+                                Copy link
+                              </Button>
+                              <Button variant="outline" asChild className="gap-2">
+                                <a href={publicUrl} target="_blank" rel="noopener noreferrer">
+                                  <Eye className="h-4 w-4" />
+                                  Preview page
+                                </a>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                onClick={() => handleUnpublishPlaylist(playlist.id)}
+                                disabled={isPublishing}
+                                className="gap-2 text-muted-foreground hover:text-foreground"
+                              >
+                                <Lock className="h-4 w-4" />
+                                Unpublish
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
 
                   {playlist.songs.length > 0 && (
                     <ul className="divide-y divide-border/30">

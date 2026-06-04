@@ -8,13 +8,125 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const ALLOWED_SOURCES = new Set(["ai_generate", "playlist_remix"]);
+const ALLOWED_SOURCES = new Set(["ai_generate", "playlist_remix", "import"]);
+const ALLOWED_DIFFICULTIES = new Set(["beginner", "intermediate", "advanced", "mixed"]);
 
 interface PlaylistVideoInput {
   youtube_id?: string | null;
   title?: string | null;
   creator?: string | null;
   thumbnail?: string | null;
+}
+
+interface NormalizedVideo {
+  youtube_video_id: string;
+  title: string;
+  channel_name: string;
+  thumbnail_url: string | null;
+}
+
+function normalizeLearningPath(
+  rawLearningPath: unknown,
+  normalizedVideos: NormalizedVideo[],
+  fallbackTitle: string,
+) {
+  if (!rawLearningPath || typeof rawLearningPath !== "object") {
+    return null;
+  }
+
+  const learningPath = rawLearningPath as Record<string, unknown>;
+  const knownVideos = new Map(normalizedVideos.map((video) => [video.youtube_video_id, video]));
+  const seenVideoIds = new Set<string>();
+
+  const modules = Array.isArray(learningPath.modules)
+    ? learningPath.modules.map((rawModule) => {
+        const module = rawModule as Record<string, unknown>;
+        const videos = Array.isArray(module.videos)
+          ? module.videos.map((rawVideo) => {
+              const video = rawVideo as Record<string, unknown>;
+              const youtubeVideoId = typeof video.youtube_video_id === "string" ? video.youtube_video_id : null;
+              if (!youtubeVideoId || seenVideoIds.has(youtubeVideoId)) return null;
+
+              const originalVideo = knownVideos.get(youtubeVideoId);
+              if (!originalVideo) return null;
+
+              seenVideoIds.add(youtubeVideoId);
+              return {
+                youtube_video_id: youtubeVideoId,
+                title: originalVideo.title,
+                channel_name: originalVideo.channel_name,
+                reason: typeof video.reason === "string" && video.reason.trim()
+                  ? video.reason.trim()
+                  : "Fits this stage of the path.",
+              };
+            }).filter((video): video is {
+              youtube_video_id: string;
+              title: string;
+              channel_name: string;
+              reason: string;
+            } => Boolean(video))
+          : [];
+
+        if (videos.length === 0) return null;
+
+        return {
+          title: typeof module.title === "string" && module.title.trim() ? module.title.trim() : "Learning Module",
+          goal: typeof module.goal === "string" && module.goal.trim() ? module.goal.trim() : "Build understanding for this stage.",
+          outcome: typeof module.outcome === "string" && module.outcome.trim() ? module.outcome.trim() : "Leave this stage with stronger context and confidence.",
+          videos,
+        };
+      }).filter((module): module is {
+        title: string;
+        goal: string;
+        outcome: string;
+        videos: {
+          youtube_video_id: string;
+          title: string;
+          channel_name: string;
+          reason: string;
+        }[];
+      } => Boolean(module))
+    : [];
+
+  const missingVideos = normalizedVideos.filter((video) => !seenVideoIds.has(video.youtube_video_id));
+  if (missingVideos.length > 0) {
+    modules.push({
+      title: "Additional Study",
+      goal: "Cover the remaining useful material in the collection.",
+      outcome: "Round out the path with supporting videos and examples.",
+      videos: missingVideos.map((video) => ({
+        youtube_video_id: video.youtube_video_id,
+        title: video.title,
+        channel_name: video.channel_name,
+        reason: "Rounds out the path with supporting context and reinforcement.",
+      })),
+    });
+  }
+
+  if (modules.length === 0) {
+    return null;
+  }
+
+  return {
+    title: typeof learningPath.title === "string" && learningPath.title.trim()
+      ? learningPath.title.trim()
+      : fallbackTitle,
+    summary: typeof learningPath.summary === "string" && learningPath.summary.trim()
+      ? learningPath.summary.trim()
+      : `A guided path built from ${normalizedVideos.length} videos.`,
+    estimated_minutes: typeof learningPath.estimated_minutes === "number" && Number.isFinite(learningPath.estimated_minutes)
+      ? Math.max(10, Math.round(learningPath.estimated_minutes))
+      : normalizedVideos.length * 18,
+    difficulty: typeof learningPath.difficulty === "string" && ALLOWED_DIFFICULTIES.has(learningPath.difficulty)
+      ? learningPath.difficulty
+      : null,
+    learning_objectives: Array.isArray(learningPath.learning_objectives)
+      ? learningPath.learning_objectives.filter((objective): objective is string =>
+        typeof objective === "string" && objective.trim().length > 0,
+      ).slice(0, 6)
+      : [],
+    modules,
+  };
 }
 
 serve(async (req) => {
@@ -50,7 +162,7 @@ serve(async (req) => {
       );
     }
 
-    const { prompt, videos, source = "ai_generate", semantic_topic = null } = await req.json();
+    const { prompt, videos, source = "ai_generate", semantic_topic = null, learning_path = null } = await req.json();
 
     if (!prompt || typeof prompt !== "string") {
       return new Response(
@@ -73,7 +185,7 @@ serve(async (req) => {
       );
     }
 
-    const deduped = new Map<string, { youtube_video_id: string; title: string; channel_name: string; thumbnail_url: string | null }>();
+    const deduped = new Map<string, NormalizedVideo>();
     for (const rawVideo of videos as PlaylistVideoInput[]) {
       if (!rawVideo.youtube_id) continue;
       if (deduped.has(rawVideo.youtube_id)) continue;
@@ -111,6 +223,8 @@ serve(async (req) => {
 
     createdPlaylistId = playlist.id;
 
+    const normalizedLearningPath = normalizeLearningPath(learning_path, normalizedVideos, prompt.trim());
+
     const { error: videosError } = await serviceClient
       .from("videos")
       .upsert(
@@ -141,12 +255,32 @@ serve(async (req) => {
       throw itemsError;
     }
 
+    if (normalizedLearningPath) {
+      const { error: learningPathError } = await serviceClient
+        .from("playlist_learning_paths")
+        .upsert({
+          playlist_id: playlist.id,
+          user_id: user.id,
+          title: normalizedLearningPath.title,
+          summary: normalizedLearningPath.summary,
+          estimated_minutes: normalizedLearningPath.estimated_minutes,
+          difficulty: normalizedLearningPath.difficulty,
+          learning_objectives: normalizedLearningPath.learning_objectives,
+          modules: normalizedLearningPath.modules,
+        }, { onConflict: "playlist_id" });
+
+      if (learningPathError) {
+        throw learningPathError;
+      }
+    }
+
     return new Response(
       JSON.stringify({
         playlist_id: playlist.id,
         prompt_text: playlist.prompt_text,
         source: playlist.source,
         saved_count: normalizedVideos.length,
+        learning_path_saved: Boolean(normalizedLearningPath),
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

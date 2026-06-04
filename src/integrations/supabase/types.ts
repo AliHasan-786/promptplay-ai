@@ -18,9 +18,13 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          public_description: string | null
+          public_slug: string | null
+          published_at: string | null
           prompt_text: string
           source: string
           user_id: string
+          visibility: string
           youtube_playlist_id: string | null
           semantic_topic: string | null
           last_synced_at: string | null
@@ -28,9 +32,13 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          public_description?: string | null
+          public_slug?: string | null
+          published_at?: string | null
           prompt_text: string
           source?: string
           user_id: string
+          visibility?: string
           youtube_playlist_id?: string | null
           semantic_topic?: string | null
           last_synced_at?: string | null
@@ -38,9 +46,13 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          public_description?: string | null
+          public_slug?: string | null
+          published_at?: string | null
           prompt_text?: string
           source?: string
           user_id?: string
+          visibility?: string
           youtube_playlist_id?: string | null
           semantic_topic?: string | null
           last_synced_at?: string | null
