@@ -114,6 +114,10 @@ export type Database = {
           position: number | null
           status: string
           added_at: string
+          watch_state: string
+          started_at: string | null
+          completed_at: string | null
+          learner_note: string | null
         }
         Insert: {
           id?: string
@@ -122,6 +126,10 @@ export type Database = {
           position?: number | null
           status?: string
           added_at?: string
+          watch_state?: string
+          started_at?: string | null
+          completed_at?: string | null
+          learner_note?: string | null
         }
         Update: {
           id?: string
@@ -130,6 +138,10 @@ export type Database = {
           position?: number | null
           status?: string
           added_at?: string
+          watch_state?: string
+          started_at?: string | null
+          completed_at?: string | null
+          learner_note?: string | null
         }
         Relationships: [
           {

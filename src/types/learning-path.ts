@@ -9,6 +9,8 @@ export interface LearningPathModule {
   title: string;
   goal: string;
   outcome: string;
+  checkpoint_questions: string[];
+  practice_task: string | null;
   videos: LearningPathVideo[];
 }
 

@@ -93,6 +93,48 @@ What this implies:
 - If PromptPlay becomes just "TubeOnAI for playlists," it loses.
 - Summary features should support the core experience, not define it.
 
+## Current user feedback signals
+
+What current competitor usage and founder feedback suggest right now:
+
+- Progress visibility and time-left context are repeatedly positioned as core value, not a nice-to-have.
+- Users want to resume quickly, not re-orient themselves every session.
+- Notes remain a major workflow anchor, especially when tied to the underlying video instead of a disconnected document.
+- Quiz-heavy learning products still risk losing users before the first payoff if value lands too late.
+- Broad summarization products attract many use cases, but users still complain when sync and timeliness are weak or when the product feels crowded.
+
+## What PromptPlay should copy and outperform
+
+These are the features worth matching because users already prove they want them:
+
+- progress bars and percent complete
+- remaining time and realistic session planning
+- queue controls like reverse order and short-first study
+- fast resume into the next video
+- private notes attached to each learning item
+- public path sharing and one-click save/remix
+- broken-video visibility with repair actions
+
+Where PromptPlay can execute better:
+
+- combine path structure, progress, notes, and repair in one workflow instead of separate tools
+- treat unavailable videos as maintainable library state instead of silent decay
+- keep a public/private distribution layer for curators and teams
+- make the first useful moment happen before transcripts, quizzes, or heavy setup are required
+
+## What PromptPlay now includes
+
+Shipped or in-progress product direction now aligns with these signals:
+
+- guided learning paths with module rationale
+- public share pages with save-your-own-copy flow
+- playlist sync plus ghost/private/deleted state tracking
+- study mode with progress, hide-completed, reverse order, short/long queueing, and session budgets
+- private per-video notes
+- library search across titles, channels, and notes
+- module checkpoints and practice tasks
+- on-demand replacement suggestions for broken playlist items
+
 ## Open whitespace
 
 The clearest gaps are:
@@ -175,3 +217,9 @@ Use:
 - TubeOnAI key features: <https://help.tubeonai.com/en/article/key-features-overview-of-tubeonai-vb1k4e/>
 - TubeOnAI pricing / billing model: <https://help.tubeonai.com/en/article/understanding-tubeonais-credit-billing-system-1sczihi/>
 - TrackMyCourse homepage: <https://www.trackmycourse.online/>
+- TrackMyCourse founder post: <https://www.reddit.com/r/developersIndia/comments/1n9yz8i/i_built_a_chrome_extension_to_track_yt_playlists/>
+- LearnPath activation / retention post: <https://www.reddit.com/r/SideProject/comments/1sckjiz/69_signups_3_quiz_completions_what_i_learned/>
+- LearnPath audience mismatch discussion: <https://www.reddit.com/r/SideProject/comments/1sevngb/launched_my_app_a_week_ago_getting_signups_but/>
+- SabLearning extension page: <https://www.sablearning.com/extension>
+- TubeOnAI App Store reviews: <https://apps.apple.com/us/app/tubeonai-summarize-anything/id6451212292?platform=iphone&see-all=reviews>
+- TubeOnAI G2 reviews: <https://www.g2.com/products/tubeonai-llc-tubeonai/reviews>

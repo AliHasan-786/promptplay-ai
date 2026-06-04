@@ -26,6 +26,8 @@ interface LearningPathModule {
   title: string;
   goal: string;
   outcome: string;
+  checkpoint_questions: string[];
+  practice_task: string | null;
   videos: LearningPathVideo[];
 }
 
@@ -42,6 +44,11 @@ function fallbackLearningPath(playlistTitle: string, videos: PlaylistVideo[]) {
       title: "Foundation",
       goal: `Start with the core concepts behind ${playlistTitle}.`,
       outcome: "You understand the vocabulary, context, and setup.",
+      checkpoint_questions: [
+        "Can you explain the core idea from this module in your own words?",
+        "Which concepts or tools keep recurring across these videos?",
+      ],
+      practice_task: "Write a short summary of the fundamentals before moving on.",
       videos: videos.slice(0, midpoint).map((video) => ({
         youtube_video_id: video.youtube_video_id,
         title: video.title,
@@ -53,6 +60,11 @@ function fallbackLearningPath(playlistTitle: string, videos: PlaylistVideo[]) {
       title: "Applied Depth",
       goal: `Use the remaining videos to go deeper on ${playlistTitle}.`,
       outcome: "You can connect the main ideas and act on them.",
+      checkpoint_questions: [
+        "What would you try differently now that you have seen the deeper examples?",
+        "Which video in this module best clarified the practical workflow, and why?",
+      ],
+      practice_task: "Apply one technique from this module to a small real example or project.",
       videos: videos.slice(midpoint).map((video) => ({
         youtube_video_id: video.youtube_video_id,
         title: video.title,
@@ -205,6 +217,8 @@ Return only valid JSON with this shape:
       "title": "string",
       "goal": "string",
       "outcome": "string",
+      "checkpoint_questions": ["string"],
+      "practice_task": "string",
       "videos": [
         {
           "youtube_video_id": "string",
@@ -220,6 +234,8 @@ Rules:
 - Include every provided video exactly once.
 - Order modules from fundamentals to advanced application.
 - Keep 2 to 6 modules.
+- Include 2 to 4 checkpoint_questions per module.
+- Include one concrete practice_task per module.
 - Keep reasons concise and concrete.
 - No markdown. No explanation outside JSON.`,
             },
@@ -282,6 +298,14 @@ Rules:
                   outcome: typeof rawModule.outcome === "string" && rawModule.outcome.trim()
                     ? rawModule.outcome.trim()
                     : "You leave this section with more depth and context.",
+                  checkpoint_questions: Array.isArray(rawModule.checkpoint_questions)
+                    ? rawModule.checkpoint_questions.filter((question: unknown): question is string =>
+                      typeof question === "string" && question.trim().length > 0
+                    ).slice(0, 4)
+                    : [],
+                  practice_task: typeof rawModule.practice_task === "string" && rawModule.practice_task.trim()
+                    ? rawModule.practice_task.trim()
+                    : null,
                   videos: moduleVideos,
                 });
               }
@@ -292,6 +316,11 @@ Rules:
                   title: "Additional Study",
                   goal: "Cover the remaining useful material in the playlist.",
                   outcome: "You round out the path with complementary examples.",
+                  checkpoint_questions: [
+                    "Which remaining video fills the biggest gap in your understanding?",
+                    "What pattern or repeated advice showed up across the remaining material?",
+                  ],
+                  practice_task: "Capture the most transferable lesson from the remaining videos.",
                   videos: [],
                 };
 

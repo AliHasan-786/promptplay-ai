@@ -18,6 +18,33 @@ function decodeHtml(value: string): string {
     .replace(/&gt;/g, ">");
 }
 
+async function fetchVideoDurations(
+  apiKey: string,
+  videoIds: string[],
+): Promise<Map<string, string>> {
+  const durations = new Map<string, string>();
+
+  for (let index = 0; index < videoIds.length; index += 50) {
+    const chunk = videoIds.slice(index, index + 50);
+    const url = new URL("https://www.googleapis.com/youtube/v3/videos");
+    url.searchParams.set("part", "contentDetails");
+    url.searchParams.set("id", chunk.join(","));
+    url.searchParams.set("key", apiKey);
+
+    const response = await fetch(url.toString());
+    if (!response.ok) continue;
+
+    const data = await response.json();
+    for (const item of data.items || []) {
+      if (item.id && item.contentDetails?.duration) {
+        durations.set(item.id, item.contentDetails.duration);
+      }
+    }
+  }
+
+  return durations;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -132,6 +159,11 @@ serve(async (req) => {
       });
     }
 
+    const youtubeApiKey = Deno.env.get("YOUTUBE_API_KEY");
+    const durationsByVideoId = youtubeApiKey
+      ? await fetchVideoDurations(youtubeApiKey, [...liveVideoMap.keys()])
+      : new Map<string, string>();
+
     if (liveVideoMap.size > 0) {
       const { error: videosError } = await serviceClient
         .from("videos")
@@ -142,6 +174,7 @@ serve(async (req) => {
             channel_name: video.channel_name,
             thumbnail_url: video.thumbnail_url,
             privacy_status: video.status === "active" ? "public" : video.status,
+            duration: durationsByVideoId.get(youtube_video_id) || null,
           })),
           { onConflict: "youtube_video_id" },
         );

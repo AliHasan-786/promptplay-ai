@@ -18,6 +18,33 @@ function decodeHtml(s: string): string {
         .replace(/&nbsp;/g, ' ');
 }
 
+async function fetchVideoDurations(
+    apiKey: string,
+    videoIds: string[],
+): Promise<Map<string, string>> {
+    const durations = new Map<string, string>();
+
+    for (let index = 0; index < videoIds.length; index += 50) {
+        const chunk = videoIds.slice(index, index + 50);
+        const url = new URL('https://www.googleapis.com/youtube/v3/videos');
+        url.searchParams.set('part', 'contentDetails');
+        url.searchParams.set('id', chunk.join(','));
+        url.searchParams.set('key', apiKey);
+
+        const response = await fetch(url.toString());
+        if (!response.ok) continue;
+
+        const data = await response.json();
+        for (const item of data.items || []) {
+            if (item.id && item.contentDetails?.duration) {
+                durations.set(item.id, item.contentDetails.duration);
+            }
+        }
+    }
+
+    return durations;
+}
+
 serve(async (req) => {
     if (req.method === 'OPTIONS') {
         return new Response(null, { headers: corsHeaders });
@@ -160,6 +187,10 @@ serve(async (req) => {
         let privateCount = 0;
 
         const validItems = allItems.filter(item => item.snippet?.resourceId?.videoId);
+        const youtubeApiKey = Deno.env.get('YOUTUBE_API_KEY');
+        const durationsByVideoId = youtubeApiKey
+            ? await fetchVideoDurations(youtubeApiKey, validItems.map((item) => item.snippet.resourceId.videoId))
+            : new Map<string, string>();
         const videosToUpsert: Array<Record<string, unknown>> = [];
         const playlistItemsToInsert: Array<Record<string, unknown>> = [];
 
@@ -183,6 +214,7 @@ serve(async (req) => {
                 channel_name: decodeHtml(item.snippet.videoOwnerChannelTitle || item.snippet.channelTitle || 'Unknown'),
                 thumbnail_url: thumbnailUrl || null,
                 privacy_status: isPrivate ? 'private' : (isDeleted ? 'deleted' : 'public'),
+                duration: durationsByVideoId.get(videoId) || null,
             });
 
             playlistItemsToInsert.push({

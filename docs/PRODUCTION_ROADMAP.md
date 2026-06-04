@@ -24,6 +24,21 @@ PromptPlay today is built on:
 
 This stack is enough for the next stage, but production readiness requires additional systems around it.
 
+## Already shipped into the product
+
+As of June 4, 2026, the current web app already has:
+
+- public path pages with copy/save flow
+- learning path generation with module structure
+- playlist sync plus ghost/private/deleted visibility
+- study mode with progress tracking, queue controls, and session planning
+- private per-video notes
+- library search across titles, channels, and notes
+- module checkpoints and practice tasks
+- on-demand replacement suggestions and apply-replacement repair flow
+
+This matters because the roadmap is no longer starting from a thin playlist generator. The next production work should harden and operationalize these loops rather than restart from strategy slides.
+
 ## Architecture additions required
 
 ### 1. Background jobs
@@ -121,6 +136,13 @@ Ship:
 - path metadata editing
 - ghost-video replacement suggestions
 - source filters and library search polish
+
+Status:
+
+- public path pages: shipped
+- ghost-video replacement suggestions: MVP shipped on demand
+- library search: shipped, still needs filters/tags
+- path metadata editing: partially shipped through public description and path regeneration
 
 Ops:
 

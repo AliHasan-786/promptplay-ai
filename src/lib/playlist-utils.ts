@@ -21,6 +21,12 @@ export function normalizeLearningPath(raw: Record<string, unknown>): LearningPat
             title: String(moduleRecord.title || "Module"),
             goal: String(moduleRecord.goal || "Build understanding for this stage."),
             outcome: String(moduleRecord.outcome || "You leave this stage with stronger context."),
+            checkpoint_questions: Array.isArray(moduleRecord.checkpoint_questions)
+              ? moduleRecord.checkpoint_questions.filter((question): question is string => typeof question === "string" && question.trim().length > 0).slice(0, 4)
+              : [],
+            practice_task: typeof moduleRecord.practice_task === "string" && moduleRecord.practice_task.trim().length > 0
+              ? moduleRecord.practice_task.trim()
+              : null,
             videos: Array.isArray(moduleRecord.videos)
               ? moduleRecord.videos.map((video) => {
                   const videoRecord = video as Record<string, unknown>;

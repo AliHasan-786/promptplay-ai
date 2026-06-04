@@ -25,6 +25,37 @@ interface NormalizedVideo {
   thumbnail_url: string | null;
 }
 
+async function fetchVideoDurations(
+  youtubeApiKey: string,
+  videoIds: string[],
+): Promise<Map<string, string>> {
+  const durations = new Map<string, string>();
+
+  for (let index = 0; index < videoIds.length; index += 50) {
+    const chunk = videoIds.slice(index, index + 50);
+    const url = new URL("https://www.googleapis.com/youtube/v3/videos");
+    url.searchParams.set("part", "contentDetails");
+    url.searchParams.set("id", chunk.join(","));
+    url.searchParams.set("maxResults", String(chunk.length));
+    url.searchParams.set("key", youtubeApiKey);
+
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      console.warn("save-generated-playlist duration fetch failed:", response.status);
+      continue;
+    }
+
+    const data = await response.json();
+    for (const item of data.items || []) {
+      if (item.id && item.contentDetails?.duration) {
+        durations.set(item.id, item.contentDetails.duration);
+      }
+    }
+  }
+
+  return durations;
+}
+
 function normalizeLearningPath(
   rawLearningPath: unknown,
   normalizedVideos: NormalizedVideo[],
@@ -73,12 +104,22 @@ function normalizeLearningPath(
           title: typeof module.title === "string" && module.title.trim() ? module.title.trim() : "Learning Module",
           goal: typeof module.goal === "string" && module.goal.trim() ? module.goal.trim() : "Build understanding for this stage.",
           outcome: typeof module.outcome === "string" && module.outcome.trim() ? module.outcome.trim() : "Leave this stage with stronger context and confidence.",
+          checkpoint_questions: Array.isArray(module.checkpoint_questions)
+            ? module.checkpoint_questions.filter((question): question is string =>
+              typeof question === "string" && question.trim().length > 0
+            ).slice(0, 4)
+            : [],
+          practice_task: typeof module.practice_task === "string" && module.practice_task.trim()
+            ? module.practice_task.trim()
+            : null,
           videos,
         };
       }).filter((module): module is {
         title: string;
         goal: string;
         outcome: string;
+        checkpoint_questions: string[];
+        practice_task: string | null;
         videos: {
           youtube_video_id: string;
           title: string;
@@ -206,6 +247,11 @@ serve(async (req) => {
       );
     }
 
+    const youtubeApiKey = Deno.env.get("YOUTUBE_API_KEY");
+    const durationsByVideoId = youtubeApiKey
+      ? await fetchVideoDurations(youtubeApiKey, normalizedVideos.map((video) => video.youtube_video_id))
+      : new Map<string, string>();
+
     const { data: playlist, error: playlistError } = await serviceClient
       .from("generated_playlists")
       .insert({
@@ -232,6 +278,7 @@ serve(async (req) => {
           ...video,
           description: "",
           privacy_status: "public",
+          duration: durationsByVideoId.get(video.youtube_video_id) || null,
         })),
         { onConflict: "youtube_video_id" },
       );
