@@ -49,6 +49,12 @@ In Supabase:
 
 If users see `Authentication failed: Failed to fetch` immediately after the Google popup, check the deployed `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, browser console network errors, and Supabase auth provider settings first.
 
+For the current production app, Vercel should point to:
+
+- `VITE_SUPABASE_URL=https://cmxquktpeqosjoacvgvl.supabase.co`
+
+If that host returns DNS `NXDOMAIN` or cannot be reached, the Supabase project is unavailable from the public API. Restore/reactivate the project in Supabase Studio, or create a new Supabase project, run migrations/functions against the new project, update Vercel `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`, and redeploy the app.
+
 ### 3. YouTube connection
 
 YouTube connection is requested separately with:
