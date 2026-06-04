@@ -117,6 +117,18 @@ That wedge matters because PromptPlay can:
 - remix existing collections into adjacent recommendations
 - keep the library useful after YouTube changes underneath it
 
+## Planning Docs
+
+- [Product strategy](./PRODUCT_STRATEGY.md)
+- [Competitive research](./docs/COMPETITIVE_RESEARCH.md)
+- [Ecosystem research](./docs/ECOSYSTEM_RESEARCH.md)
+- [Expansion opportunities](./docs/EXPANSION_OPPORTUNITIES.md)
+- [Feature backlog](./docs/FEATURE_BACKLOG.md)
+- [Fun applications](./docs/FUN_APPLICATIONS.md)
+- [AI architecture options](./docs/AI_ARCHITECTURE_OPTIONS.md)
+- [Implementation epics](./docs/IMPLEMENTATION_EPICS.md)
+- [Production roadmap](./docs/PRODUCTION_ROADMAP.md)
+
 ## Current Limits
 
 - YouTube access currently depends on the user’s active sign-in session in the app.
