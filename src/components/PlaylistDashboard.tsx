@@ -98,6 +98,8 @@ interface PlaylistRepairSuggestion {
 interface PlaylistDashboardProps {
   authToken: string | null;
   providerToken: string | null;
+  connectYouTube: () => Promise<string>;
+  isConnectingYouTube: boolean;
   refreshTrigger: number;
   _onExportToYouTube?: (playlistId: string) => void;
 }
@@ -140,6 +142,8 @@ function parseTagInput(value: string): string[] {
 export function PlaylistDashboard({
   authToken,
   providerToken,
+  connectYouTube,
+  isConnectingYouTube,
   refreshTrigger,
   _onExportToYouTube,
 }: PlaylistDashboardProps) {
@@ -796,14 +800,12 @@ export function PlaylistDashboard({
     setSyncingId(playlist.id);
 
     try {
-      if (!providerToken) {
-        throw new Error("Please sign in again to reconnect your YouTube account.");
-      }
+      const youtubeToken = providerToken || await connectYouTube();
 
       const { data, error } = await supabase.functions.invoke("sync-playlist", {
         body: { playlist_id: playlist.id },
         headers: {
-          "X-YouTube-Token": providerToken,
+          "X-YouTube-Token": youtubeToken,
         },
       });
 
@@ -832,9 +834,7 @@ export function PlaylistDashboard({
     setExportingId(playlist.id);
 
     try {
-      if (!providerToken) {
-        throw new Error("Please sign in again to connect your YouTube account.");
-      }
+      const youtubeToken = providerToken || await connectYouTube();
 
       const { data, error } = await supabase.functions.invoke("youtube-create-playlist", {
         body: {
@@ -842,7 +842,7 @@ export function PlaylistDashboard({
           playlist_name: playlist.prompt_text,
         },
         headers: {
-          "X-YouTube-Token": providerToken,
+          "X-YouTube-Token": youtubeToken,
         },
       });
 
@@ -855,7 +855,7 @@ export function PlaylistDashboard({
         ) {
           toast({
             title: "Session expired",
-            description: "Please sign out and sign back in to reconnect your YouTube account.",
+            description: "Reconnect YouTube and try again.",
             variant: "destructive",
           });
           return;
@@ -1154,10 +1154,10 @@ export function PlaylistDashboard({
                         variant="outline"
                         size="sm"
                         onClick={() => handleExportToYouTube(playlist)}
-                        disabled={isExporting || isGenerating || isBuildingPath}
+                        disabled={isExporting || isGenerating || isBuildingPath || isConnectingYouTube}
                         className="gap-1.5 text-xs"
                       >
-                        {isExporting ? (
+                        {isExporting || isConnectingYouTube ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
                           <Youtube className="h-3.5 w-3.5" />
@@ -1171,11 +1171,11 @@ export function PlaylistDashboard({
                         variant="ghost"
                         size="sm"
                         onClick={() => handleSyncPlaylist(playlist)}
-                        disabled={isSyncing || isGenerating || isBuildingPath || isExporting}
+                        disabled={isSyncing || isGenerating || isBuildingPath || isExporting || isConnectingYouTube}
                         className="gap-1.5 text-xs text-sky-300 hover:bg-sky-500/10 hover:text-sky-200"
                         title="Sync availability from YouTube"
                       >
-                        {isSyncing ? (
+                        {isSyncing || isConnectingYouTube ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
                           <RefreshCw className="h-3.5 w-3.5" />
@@ -1188,7 +1188,7 @@ export function PlaylistDashboard({
                       variant="ghost"
                       size="sm"
                       onClick={() => handleGenerateRecommendation(playlist)}
-                      disabled={isGenerating || isExporting || isBuildingPath || isSyncing}
+                      disabled={isGenerating || isExporting || isBuildingPath || isSyncing || isConnectingYouTube}
                       className="gap-1.5 text-xs text-primary hover:bg-primary/10 hover:text-primary"
                       title="Create a remix"
                     >
@@ -1204,7 +1204,7 @@ export function PlaylistDashboard({
                       variant="ghost"
                       size="sm"
                       onClick={() => handleBuildLearningPath(playlist.id)}
-                      disabled={isBuildingPath || isGenerating || isSyncing || playlist.songs.length < 2}
+                      disabled={isBuildingPath || isGenerating || isSyncing || isConnectingYouTube || playlist.songs.length < 2}
                       className="gap-1.5 text-xs text-emerald-300 hover:bg-emerald-500/10 hover:text-emerald-200"
                       title="Build a guided learning path"
                     >

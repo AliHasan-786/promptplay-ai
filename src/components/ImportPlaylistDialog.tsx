@@ -73,7 +73,7 @@ export function ImportPlaylistDialog({
                 ) {
                     toast({
                         title: "Session expired",
-                        description: "Please sign out and sign back in to reconnect your YouTube account.",
+                        description: "Reconnect YouTube and try again.",
                         variant: "destructive",
                     });
                     return;

@@ -15,9 +15,12 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// Essential: we need the youtube.force-ssl scope for exporting playlists
-googleProvider.addScope('https://www.googleapis.com/auth/youtube.force-ssl');
-googleProvider.setCustomParameters({
-    prompt: 'consent',
-    access_type: 'offline'
-});
+export function createYouTubeProvider() {
+    const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/youtube.force-ssl');
+    provider.setCustomParameters({
+        prompt: 'consent',
+    });
+
+    return provider;
+}

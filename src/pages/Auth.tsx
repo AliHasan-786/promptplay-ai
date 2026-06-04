@@ -8,6 +8,16 @@ import { HeroBackground } from "@/components/HeroBackground";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
+function getAuthErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : "Please try again later.";
+
+  if (message.toLowerCase().includes("failed to fetch")) {
+    return "Could not reach the auth service. Check the deployed Supabase URL/key and Google auth configuration.";
+  }
+
+  return message;
+}
+
 export default function Auth() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
@@ -18,10 +28,9 @@ export default function Auth() {
       // 1. Trigger the Firebase popup (clean URL, custom domains supported)
       const result = await signInWithPopup(auth, googleProvider);
 
-      // 2. Extract both the ID Token (for Supabase Auth) and Access Token (for YouTube Scopes)
+      // 2. Extract the ID Token for Supabase Auth.
       const credential = GoogleAuthProvider.credentialFromResult(result);
       const idToken = credential?.idToken;
-      const accessToken = credential?.accessToken;
 
       if (!idToken) throw new Error("Failed to retrieve Google ID Token");
 
@@ -29,7 +38,6 @@ export default function Auth() {
       const { error } = await supabase.auth.signInWithIdToken({
         provider: 'google',
         token: idToken,
-        access_token: accessToken || undefined
       });
 
       if (error) throw error;
@@ -39,10 +47,9 @@ export default function Auth() {
 
     } catch (error: unknown) {
       console.error("Auth error:", error);
-      const errorMessage = error instanceof Error ? error.message : "Please try again later.";
       toast({
         title: "Authentication failed",
-        description: errorMessage,
+        description: getAuthErrorMessage(error),
         variant: "destructive",
       });
       setIsLoading(false);
@@ -96,8 +103,8 @@ export default function Auth() {
             </Button>
 
             <p className="text-xs text-muted-foreground text-center">
-              Signing in connects your Google account and grants YouTube access so you can
-              import, export, sync, and maintain playlists directly.
+              Sign in creates your PromptPlay account. You can connect YouTube later when
+              importing, exporting, or syncing playlists.
             </p>
           </div>
 

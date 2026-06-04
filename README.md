@@ -94,7 +94,7 @@ npx supabase db push
 
 PromptPlay signs users in with Firebase on the client, then exchanges the Google ID token into a Supabase session with `signInWithIdToken`.
 
-Use [GOOGLE_OAUTH_SETUP.md](./GOOGLE_OAUTH_SETUP.md) for the exact Firebase + Google setup.
+Use [OAuth setup](./docs/OAUTH_SETUP.md) for the exact Firebase, Supabase, and Google OAuth setup.
 
 ## Quality Gates
 
@@ -127,6 +127,7 @@ That wedge matters because PromptPlay can:
 - [Fun applications](./docs/FUN_APPLICATIONS.md)
 - [AI architecture options](./docs/AI_ARCHITECTURE_OPTIONS.md)
 - [Implementation epics](./docs/IMPLEMENTATION_EPICS.md)
+- [OAuth setup](./docs/OAUTH_SETUP.md)
 - [Production roadmap](./docs/PRODUCTION_ROADMAP.md)
 
 ## Current Limits

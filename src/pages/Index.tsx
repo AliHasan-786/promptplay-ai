@@ -9,7 +9,14 @@ import { useAuth } from "@/hooks/useAuth";
 
 const Index = () => {
   const navigate = useNavigate();
-  const { user, isLoading: authLoading, session, providerToken } = useAuth();
+  const {
+    user,
+    isLoading: authLoading,
+    session,
+    providerToken,
+    connectYouTube,
+    isConnectingYouTube,
+  } = useAuth();
   const [refreshKey, setRefreshKey] = useState(0);
 
   const authToken = session?.access_token || null;
@@ -55,6 +62,8 @@ const Index = () => {
             <PlaylistDashboard
               authToken={authToken}
               providerToken={providerToken}
+              connectYouTube={connectYouTube}
+              isConnectingYouTube={isConnectingYouTube}
               refreshTrigger={refreshKey}
             />
           )}
@@ -65,6 +74,8 @@ const Index = () => {
       <ExportBar
         authToken={authToken}
         providerToken={providerToken}
+        connectYouTube={connectYouTube}
+        isConnectingYouTube={isConnectingYouTube}
         onImportComplete={handleImportComplete}
       />
     </div>
