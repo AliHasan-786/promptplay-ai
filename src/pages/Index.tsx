@@ -5,7 +5,10 @@ import { HeroBackground } from "@/components/HeroBackground";
 import { ChatInterface } from "@/components/ChatInterface";
 import { PlaylistDashboard } from "@/components/PlaylistDashboard";
 import { ExportBar } from "@/components/ExportBar";
+import { ImportPlaylistDialog } from "@/components/ImportPlaylistDialog";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { Download, Loader2 } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -42,6 +45,32 @@ const Index = () => {
             onPlaylistCreated={handlePlaylistCreated}
           />
 
+          {user && (
+            <div className="flex justify-center animate-fade-in">
+              <ImportPlaylistDialog
+                youtubeAccessToken={providerToken}
+                authToken={authToken}
+                connectYouTube={connectYouTube}
+                isConnectingYouTube={isConnectingYouTube}
+                onImportComplete={handleImportComplete}
+              >
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 text-muted-foreground hover:text-foreground"
+                  disabled={isConnectingYouTube}
+                >
+                  {isConnectingYouTube ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4" />
+                  )}
+                  {isConnectingYouTube ? "Connecting YouTube..." : "Import an existing YouTube playlist"}
+                </Button>
+              </ImportPlaylistDialog>
+            </div>
+          )}
+
           {/* Auth prompt */}
           {!authLoading && !user && (
             <div className="text-center animate-fade-in">
@@ -74,8 +103,6 @@ const Index = () => {
       <ExportBar
         authToken={authToken}
         providerToken={providerToken}
-        connectYouTube={connectYouTube}
-        isConnectingYouTube={isConnectingYouTube}
         onImportComplete={handleImportComplete}
       />
     </div>

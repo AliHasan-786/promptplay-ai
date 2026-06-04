@@ -16,6 +16,8 @@ import { toast } from "@/hooks/use-toast";
 interface ImportPlaylistDialogProps {
     youtubeAccessToken: string | null;
     authToken: string | null;
+    connectYouTube?: () => Promise<string>;
+    isConnectingYouTube?: boolean;
     onImportComplete: (result: Record<string, unknown>) => void;
     children?: React.ReactNode;
 }
@@ -23,16 +25,53 @@ interface ImportPlaylistDialogProps {
 export function ImportPlaylistDialog({
     youtubeAccessToken,
     authToken,
+    connectYouTube,
+    isConnectingYouTube = false,
     onImportComplete,
     children,
 }: ImportPlaylistDialogProps) {
     const [open, setOpen] = useState(false);
     const [url, setUrl] = useState("");
     const [isImporting, setIsImporting] = useState(false);
+    const [connectedToken, setConnectedToken] = useState<string | null>(null);
+    const activeYoutubeToken = youtubeAccessToken ?? connectedToken;
+
+    const handleOpenChange = async (nextOpen: boolean) => {
+        if (!nextOpen) {
+            setOpen(false);
+            return;
+        }
+
+        if (!authToken) {
+            toast({
+                title: "Sign in required",
+                description: "Please sign in to import playlists.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        if (!activeYoutubeToken && connectYouTube) {
+            try {
+                const token = await connectYouTube();
+                setConnectedToken(token);
+                setOpen(true);
+            } catch (error) {
+                toast({
+                    title: "YouTube connection failed",
+                    description: error instanceof Error ? error.message : "Please try again.",
+                    variant: "destructive",
+                });
+            }
+            return;
+        }
+
+        setOpen(true);
+    };
 
     const handleImport = async () => {
         if (!url.trim()) return;
-        if (!youtubeAccessToken) {
+        if (!activeYoutubeToken) {
             toast({
                 title: "YouTube not connected",
                 description: "Connect your YouTube account first to import playlists.",
@@ -57,7 +96,7 @@ export function ImportPlaylistDialog({
                     youtube_playlist_url: url.trim(),
                 },
                 headers: {
-                    "X-YouTube-Token": youtubeAccessToken,
+                    "X-YouTube-Token": activeYoutubeToken,
                 },
             });
 
@@ -102,12 +141,16 @@ export function ImportPlaylistDialog({
     };
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>
                 {children || (
-                    <Button variant="outline" className="gap-2">
-                        <Download className="w-4 h-4" />
-                        Import Playlist
+                    <Button variant="outline" className="gap-2" disabled={isConnectingYouTube}>
+                        {isConnectingYouTube ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <Download className="w-4 h-4" />
+                        )}
+                        {isConnectingYouTube ? "Connecting..." : "Import Playlist"}
                     </Button>
                 )}
             </DialogTrigger>
