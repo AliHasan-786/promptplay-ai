@@ -132,6 +132,7 @@ That package includes:
 
 - import or generate a playlist
 - structure it into modules
+- tag and filter paths as the library grows
 - explain the sequence
 - track progress
 - sync it in the background

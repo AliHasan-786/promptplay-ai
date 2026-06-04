@@ -23,6 +23,7 @@ export type Database = {
           published_at: string | null
           prompt_text: string
           source: string
+          topic_tags: string[]
           user_id: string
           visibility: string
           youtube_playlist_id: string | null
@@ -37,6 +38,7 @@ export type Database = {
           published_at?: string | null
           prompt_text: string
           source?: string
+          topic_tags?: string[]
           user_id: string
           visibility?: string
           youtube_playlist_id?: string | null
@@ -51,6 +53,7 @@ export type Database = {
           published_at?: string | null
           prompt_text?: string
           source?: string
+          topic_tags?: string[]
           user_id?: string
           visibility?: string
           youtube_playlist_id?: string | null

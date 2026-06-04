@@ -41,6 +41,7 @@ interface PublicPlaylistRecord {
   published_at: string | null;
   source: PlaylistSource;
   youtube_playlist_id: string | null;
+  topic_tags: string[];
   created_at: string;
   songs: PublicPlaylistSong[];
   learning_path: LearningPathRecord | null;
@@ -80,7 +81,7 @@ const PublicPlaylist = () => {
       try {
         const { data: playlistRow, error: playlistError } = await supabase
           .from("generated_playlists")
-          .select("id, prompt_text, source, created_at, youtube_playlist_id, public_slug, public_description, published_at")
+          .select("id, prompt_text, source, created_at, youtube_playlist_id, public_slug, public_description, published_at, topic_tags")
           .eq("public_slug", slug)
           .eq("visibility", "public")
           .maybeSingle();
@@ -131,6 +132,7 @@ const PublicPlaylist = () => {
           published_at: playlistRow.published_at,
           source: (playlistRow.source as PlaylistSource) || "ai_generate",
           youtube_playlist_id: playlistRow.youtube_playlist_id,
+          topic_tags: Array.isArray(playlistRow.topic_tags) ? playlistRow.topic_tags : [],
           created_at: playlistRow.created_at,
           songs: (items || []).map((item) => ({
             id: item.id,
@@ -188,6 +190,7 @@ const PublicPlaylist = () => {
             creator: song.artist_name,
             thumbnail: song.thumbnail_url,
           })),
+          topic_tags: playlist.topic_tags,
           learning_path: playlist.learning_path
             ? {
                 title: playlist.learning_path.title,
@@ -301,6 +304,11 @@ const PublicPlaylist = () => {
                       {playlist.learning_path.estimated_minutes} min
                     </Badge>
                   )}
+                  {playlist.topic_tags.map((tag) => (
+                    <Badge key={tag} variant="outline" className="border-border/70 text-muted-foreground">
+                      #{tag}
+                    </Badge>
+                  ))}
                 </div>
               </div>
 

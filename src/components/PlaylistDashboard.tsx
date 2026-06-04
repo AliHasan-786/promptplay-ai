@@ -6,6 +6,7 @@ import {
   Copy,
   ExternalLink,
   Eye,
+  Filter,
   Globe,
   ListMusic,
   Lock,
@@ -15,7 +16,9 @@ import {
   RefreshCw,
   Route,
   Search,
+  ShieldCheck,
   Sparkles,
+  Tags,
   Trash2,
   Youtube,
 } from "lucide-react";
@@ -42,6 +45,7 @@ import type { LearningPathRecord } from "@/types/learning-path";
 type PlaylistSource = "ai_generate" | "playlist_remix" | "import";
 type PlaylistItemStatus = "active" | "deleted" | "private";
 type PlaylistVisibility = "private" | "public";
+type LibraryView = "all" | "in_progress" | "needs_repair" | "public" | "notes" | "paths";
 
 interface PlaylistSong {
   id: string;
@@ -65,6 +69,9 @@ interface PlaylistRecord {
   public_description: string | null;
   published_at: string | null;
   youtube_playlist_id: string | null;
+  semantic_topic: string | null;
+  last_synced_at: string | null;
+  topic_tags: string[];
   created_at: string;
   songs: PlaylistSong[];
   learning_path: LearningPathRecord | null;
@@ -107,6 +114,29 @@ const sourceBadgeClass: Record<PlaylistSource, string> = {
   import: "border-sky-400/30 bg-sky-400/10 text-sky-300",
 };
 
+const libraryViewLabels: Record<LibraryView, string> = {
+  all: "All",
+  in_progress: "In progress",
+  needs_repair: "Needs repair",
+  public: "Public",
+  notes: "With notes",
+  paths: "Paths",
+};
+
+function parseTagInput(value: string): string[] {
+  const seen = new Set<string>();
+
+  return value
+    .split(/[,\n#]+/)
+    .map((tag) => tag.trim().toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-"))
+    .filter((tag) => {
+      if (tag.length < 2 || seen.has(tag)) return false;
+      seen.add(tag);
+      return true;
+    })
+    .slice(0, 8);
+}
+
 export function PlaylistDashboard({
   authToken,
   providerToken,
@@ -129,6 +159,10 @@ export function PlaylistDashboard({
   const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
   const [libraryQuery, setLibraryQuery] = useState("");
+  const [activeLibraryView, setActiveLibraryView] = useState<LibraryView>("all");
+  const [editingTagsId, setEditingTagsId] = useState<string | null>(null);
+  const [savingTagsId, setSavingTagsId] = useState<string | null>(null);
+  const [tagDrafts, setTagDrafts] = useState<Record<string, string>>({});
   const [repairingId, setRepairingId] = useState<string | null>(null);
   const [applyingReplacementId, setApplyingReplacementId] = useState<string | null>(null);
   const [replacementSuggestions, setReplacementSuggestions] = useState<Record<string, PlaylistRepairSuggestion[]>>({});
@@ -143,7 +177,7 @@ export function PlaylistDashboard({
 
       const { data: playlistData, error: playlistError } = await supabase
         .from("generated_playlists")
-        .select("id, prompt_text, source, visibility, public_slug, public_description, published_at, youtube_playlist_id, created_at")
+        .select("id, prompt_text, source, visibility, public_slug, public_description, published_at, youtube_playlist_id, semantic_topic, last_synced_at, topic_tags, created_at")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
@@ -219,6 +253,9 @@ export function PlaylistDashboard({
         public_description: playlist.public_description,
         published_at: playlist.published_at,
         youtube_playlist_id: playlist.youtube_playlist_id,
+        semantic_topic: playlist.semantic_topic,
+        last_synced_at: playlist.last_synced_at,
+        topic_tags: Array.isArray(playlist.topic_tags) ? playlist.topic_tags : [],
         created_at: playlist.created_at,
         songs: itemsByPlaylist[playlist.id] || [],
         learning_path: pathsByPlaylist.get(playlist.id) || null,
@@ -230,6 +267,11 @@ export function PlaylistDashboard({
           nextPlaylists.flatMap((playlist) =>
             playlist.songs.map((song) => [song.id, song.learner_note || ""]),
           ),
+        ),
+      );
+      setTagDrafts(
+        Object.fromEntries(
+          nextPlaylists.map((playlist) => [playlist.id, playlist.topic_tags.join(", ")]),
         ),
       );
     } catch (error) {
@@ -266,6 +308,49 @@ export function PlaylistDashboard({
     }
 
     return 18 * 60;
+  };
+
+  const getPlaylistStats = (playlist: PlaylistRecord) => {
+    const totalVideos = playlist.songs.length;
+    const ghostCount = playlist.songs.filter((song) => song.status !== "active").length;
+    const completedCount = playlist.songs.filter((song) => ["completed", "skipped"].includes(song.watch_state)).length;
+    const inProgressCount = playlist.songs.filter((song) => song.watch_state === "in_progress").length;
+    const noteCount = playlist.songs.filter((song) => song.learner_note?.trim()).length;
+    const activeCount = Math.max(0, totalVideos - ghostCount);
+    const healthScore = totalVideos > 0 ? Math.round((activeCount / totalVideos) * 100) : 100;
+    const progressPercent = totalVideos > 0 ? Math.round((completedCount / totalVideos) * 100) : 0;
+
+    return {
+      activeCount,
+      completedCount,
+      ghostCount,
+      healthScore,
+      inProgressCount,
+      noteCount,
+      progressPercent,
+      totalVideos,
+    };
+  };
+
+  const getHealthBadgeClass = (healthScore: number) => {
+    if (healthScore >= 95) return "border-emerald-400/30 bg-emerald-400/10 text-emerald-300";
+    if (healthScore >= 80) return "border-yellow-400/30 bg-yellow-400/10 text-yellow-300";
+    return "border-red-400/30 bg-red-400/10 text-red-300";
+  };
+
+  const playlistMatchesView = (playlist: PlaylistRecord, view: LibraryView) => {
+    const stats = getPlaylistStats(playlist);
+
+    if (view === "all") return true;
+    if (view === "in_progress") {
+      return stats.inProgressCount > 0 || (stats.completedCount > 0 && stats.completedCount < stats.totalVideos);
+    }
+    if (view === "needs_repair") return stats.ghostCount > 0;
+    if (view === "public") return playlist.visibility === "public";
+    if (view === "notes") return stats.noteCount > 0;
+    if (view === "paths") return Boolean(playlist.learning_path);
+
+    return true;
   };
 
   const handleWatchStateChange = async (
@@ -363,6 +448,43 @@ export function PlaylistDashboard({
       });
     } finally {
       setSavingNoteSongId(null);
+    }
+  };
+
+  const handleSaveTags = async (playlistId: string) => {
+    setSavingTagsId(playlistId);
+
+    try {
+      const topicTags = parseTagInput(tagDrafts[playlistId] || "");
+      const { error } = await supabase
+        .from("generated_playlists")
+        .update({ topic_tags: topicTags })
+        .eq("id", playlistId);
+
+      if (error) throw error;
+
+      setPlaylists((prev) =>
+        prev.map((playlist) =>
+          playlist.id === playlistId
+            ? { ...playlist, topic_tags: topicTags }
+            : playlist,
+        ),
+      );
+      setTagDrafts((prev) => ({ ...prev, [playlistId]: topicTags.join(", ") }));
+      setEditingTagsId(null);
+      toast({
+        title: "Tags saved",
+        description: topicTags.length > 0 ? "This path is easier to find now." : "Tags were cleared.",
+      });
+    } catch (error) {
+      console.error("Tag save error:", error);
+      toast({
+        title: "Could not save tags",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingTagsId(null);
     }
   };
 
@@ -785,11 +907,14 @@ export function PlaylistDashboard({
   if (playlists.length === 0) return null;
 
   const normalizedLibraryQuery = libraryQuery.trim().toLowerCase();
+  const filteredByView = playlists.filter((playlist) => playlistMatchesView(playlist, activeLibraryView));
   const visiblePlaylists = normalizedLibraryQuery
-    ? playlists.filter((playlist) => {
+    ? filteredByView.filter((playlist) => {
         const haystack = [
           playlist.prompt_text,
           playlist.public_description || "",
+          playlist.semantic_topic || "",
+          ...playlist.topic_tags,
           playlist.learning_path?.title || "",
           playlist.learning_path?.summary || "",
           ...(playlist.learning_path?.learning_objectives || []),
@@ -802,7 +927,30 @@ export function PlaylistDashboard({
 
         return haystack.includes(normalizedLibraryQuery);
       })
-    : playlists;
+    : filteredByView;
+  const libraryStats = playlists.reduce((stats, playlist) => {
+    const playlistStats = getPlaylistStats(playlist);
+
+    return {
+      totalNotes: stats.totalNotes + playlistStats.noteCount,
+      needsRepair: stats.needsRepair + (playlistStats.ghostCount > 0 ? 1 : 0),
+      inProgress: stats.inProgress + (
+        playlistStats.inProgressCount > 0 ||
+        (playlistStats.completedCount > 0 && playlistStats.completedCount < playlistStats.totalVideos)
+          ? 1
+          : 0
+      ),
+      healthTotal: stats.healthTotal + playlistStats.healthScore,
+    };
+  }, {
+    totalNotes: 0,
+    needsRepair: 0,
+    inProgress: 0,
+    healthTotal: 0,
+  });
+  const averageHealth = playlists.length > 0
+    ? Math.round(libraryStats.healthTotal / playlists.length)
+    : 100;
 
   return (
     <div className="mx-auto w-full max-w-3xl">
@@ -813,7 +961,7 @@ export function PlaylistDashboard({
             Your Library
           </h2>
           <span className="text-sm text-muted-foreground">
-            {visiblePlaylists.length} of {playlists.length} {playlists.length === 1 ? "playlist" : "playlists"}
+            {visiblePlaylists.length} of {playlists.length} {playlists.length === 1 ? "path" : "paths"}
           </span>
         </div>
 
@@ -828,9 +976,58 @@ export function PlaylistDashboard({
         </div>
       </div>
 
+      <div className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-border/60 bg-card/50 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-muted-foreground">Library health</span>
+            <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <p className="mt-1 text-lg font-semibold text-foreground">{averageHealth}%</p>
+        </div>
+        <div className="rounded-xl border border-border/60 bg-card/50 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-muted-foreground">Needs repair</span>
+            <RefreshCw className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <p className="mt-1 text-lg font-semibold text-foreground">{libraryStats.needsRepair}</p>
+        </div>
+        <div className="rounded-xl border border-border/60 bg-card/50 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-muted-foreground">In progress</span>
+            <Play className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <p className="mt-1 text-lg font-semibold text-foreground">{libraryStats.inProgress}</p>
+        </div>
+        <div className="rounded-xl border border-border/60 bg-card/50 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-muted-foreground">Notes saved</span>
+            <NotebookText className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <p className="mt-1 text-lg font-semibold text-foreground">{libraryStats.totalNotes}</p>
+        </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <Filter className="h-3.5 w-3.5" />
+          View
+        </span>
+        {(Object.keys(libraryViewLabels) as LibraryView[]).map((view) => (
+          <Button
+            key={view}
+            variant={activeLibraryView === view ? "default" : "outline"}
+            size="sm"
+            onClick={() => setActiveLibraryView(view)}
+            className="h-8 text-xs"
+          >
+            {libraryViewLabels[view]}
+          </Button>
+        ))}
+      </div>
+
       {visiblePlaylists.length === 0 && (
         <div className="rounded-2xl border border-border/60 bg-card/60 p-6 text-sm text-muted-foreground">
-          No playlists match that search yet. Try a different title, creator, or note keyword.
+          No paths match those filters yet. Try a different title, creator, tag, or note keyword.
         </div>
       )}
 
@@ -851,13 +1048,15 @@ export function PlaylistDashboard({
             ? sortedSongs.filter((song) => !["completed", "skipped"].includes(song.watch_state))
             : sortedSongs;
           const sessionPlan = buildSessionPlan(sortedSongs, studyBudget, fallbackVideoSeconds);
-          const ghostCount = playlist.songs.filter((song) => song.status !== "active").length;
-          const completedCount = playlist.songs.filter((song) => ["completed", "skipped"].includes(song.watch_state)).length;
-          const noteCount = playlist.songs.filter((song) => song.learner_note?.trim()).length;
+          const playlistStats = getPlaylistStats(playlist);
+          const {
+            completedCount,
+            ghostCount,
+            healthScore,
+            noteCount,
+            progressPercent,
+          } = playlistStats;
           const playlistRepairSuggestions = replacementSuggestions[playlist.id] || [];
-          const progressPercent = playlist.songs.length > 0
-            ? Math.round((completedCount / playlist.songs.length) * 100)
-            : 0;
           const remainingVideos = playlist.songs.filter((song) =>
             song.status === "active" && !["completed", "skipped"].includes(song.watch_state),
           );
@@ -898,9 +1097,17 @@ export function PlaylistDashboard({
                       {remainingVideos.length > 0 && (
                         <span>{formatSecondsLabel(remainingSeconds)} left</span>
                       )}
+                      <Badge variant="outline" className={getHealthBadgeClass(healthScore)}>
+                        {healthScore}% health
+                      </Badge>
                       {noteCount > 0 && (
                         <span>{noteCount} notes</span>
                       )}
+                      {playlist.topic_tags.map((tag) => (
+                        <Badge key={tag} variant="outline" className="border-border/70 text-muted-foreground">
+                          #{tag}
+                        </Badge>
+                      ))}
                       <span className="flex items-center gap-1">
                         <Clock className="h-3.5 w-3.5" />
                         {new Date(playlist.created_at).toLocaleDateString()}
@@ -1221,6 +1428,94 @@ export function PlaylistDashboard({
                                 Unpublish
                               </Button>
                             </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="border-b border-border/50 px-4 py-4">
+                    <div className="rounded-2xl border border-border/60 bg-background/40 p-4">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0 space-y-3">
+                          <div className="flex items-center gap-2">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary text-muted-foreground">
+                              <Tags className="h-4 w-4" />
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-semibold text-foreground">Library organization</h4>
+                              <p className="text-sm text-muted-foreground">
+                                Topic labels and health status for this saved path.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2">
+                            {playlist.topic_tags.length > 0 ? playlist.topic_tags.map((tag) => (
+                              <Badge key={tag} variant="outline" className="border-border/70 text-muted-foreground">
+                                #{tag}
+                              </Badge>
+                            )) : (
+                              <span className="text-sm text-muted-foreground">No tags yet</span>
+                            )}
+                          </div>
+
+                          {editingTagsId === playlist.id && (
+                            <Input
+                              value={tagDrafts[playlist.id] || ""}
+                              onChange={(event) =>
+                                setTagDrafts((prev) => ({ ...prev, [playlist.id]: event.target.value }))
+                              }
+                              placeholder="ai, react, onboarding, design"
+                              className="border-border/60 bg-background/60"
+                            />
+                          )}
+                        </div>
+
+                        <div className="flex w-full flex-col gap-2 lg:max-w-xs">
+                          <Badge variant="outline" className={getHealthBadgeClass(healthScore)}>
+                            <ShieldCheck className="mr-1 h-3.5 w-3.5" />
+                            {healthScore}% health
+                          </Badge>
+                          <div className="text-xs text-muted-foreground">
+                            {playlist.last_synced_at
+                              ? `Synced ${new Date(playlist.last_synced_at).toLocaleDateString()}`
+                              : "Not synced yet"}
+                          </div>
+
+                          {editingTagsId === playlist.id ? (
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleSaveTags(playlist.id)}
+                                disabled={savingTagsId === playlist.id}
+                                className="flex-1 gap-2 text-xs"
+                              >
+                                {savingTagsId === playlist.id && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                                Save tags
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setTagDrafts((prev) => ({ ...prev, [playlist.id]: playlist.topic_tags.join(", ") }));
+                                  setEditingTagsId(null);
+                                }}
+                                className="text-xs text-muted-foreground"
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setEditingTagsId(playlist.id)}
+                              className="gap-2 text-xs"
+                            >
+                              <Tags className="h-3.5 w-3.5" />
+                              Edit tags
+                            </Button>
                           )}
                         </div>
                       </div>

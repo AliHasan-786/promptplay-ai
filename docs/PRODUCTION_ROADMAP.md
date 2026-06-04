@@ -33,7 +33,9 @@ As of June 4, 2026, the current web app already has:
 - playlist sync plus ghost/private/deleted visibility
 - study mode with progress tracking, queue controls, and session planning
 - private per-video notes
-- library search across titles, channels, and notes
+- library search across titles, channels, notes, and tags
+- library filters for in-progress, needs-repair, public, note-heavy, and path-ready collections
+- playlist health rollups
 - module checkpoints and practice tasks
 - on-demand replacement suggestions and apply-replacement repair flow
 
@@ -141,7 +143,7 @@ Status:
 
 - public path pages: shipped
 - ghost-video replacement suggestions: MVP shipped on demand
-- library search: shipped, still needs filters/tags
+- library search, tags, filters, and health rollups: shipped as MVP
 - path metadata editing: partially shipped through public description and path regeneration
 
 Ops:

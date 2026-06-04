@@ -11,6 +11,21 @@ const corsHeaders = {
 const ALLOWED_SOURCES = new Set(["ai_generate", "playlist_remix", "import"]);
 const ALLOWED_DIFFICULTIES = new Set(["beginner", "intermediate", "advanced", "mixed"]);
 
+function normalizeTopicTags(rawTopicTags: unknown): string[] {
+  if (!Array.isArray(rawTopicTags)) return [];
+
+  const seen = new Set<string>();
+  return rawTopicTags
+    .filter((tag): tag is string => typeof tag === "string")
+    .map((tag) => tag.trim().toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-"))
+    .filter((tag) => {
+      if (tag.length < 2 || seen.has(tag)) return false;
+      seen.add(tag);
+      return true;
+    })
+    .slice(0, 8);
+}
+
 interface PlaylistVideoInput {
   youtube_id?: string | null;
   title?: string | null;
@@ -203,7 +218,7 @@ serve(async (req) => {
       );
     }
 
-    const { prompt, videos, source = "ai_generate", semantic_topic = null, learning_path = null } = await req.json();
+    const { prompt, videos, source = "ai_generate", semantic_topic = null, topic_tags = [], learning_path = null } = await req.json();
 
     if (!prompt || typeof prompt !== "string") {
       return new Response(
@@ -259,6 +274,7 @@ serve(async (req) => {
         prompt_text: prompt.trim(),
         source,
         semantic_topic: typeof semantic_topic === "string" && semantic_topic.trim() ? semantic_topic.trim() : null,
+        topic_tags: normalizeTopicTags(topic_tags),
       })
       .select("id, prompt_text, source")
       .single();

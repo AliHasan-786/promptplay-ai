@@ -102,6 +102,8 @@ What current competitor usage and founder feedback suggest right now:
 - Notes remain a major workflow anchor, especially when tied to the underlying video instead of a disconnected document.
 - Quiz-heavy learning products still risk losing users before the first payoff if value lands too late.
 - Broad summarization products attract many use cases, but users still complain when sync and timeliness are weak or when the product feels crowded.
+- Current YouTube-learning competitors are converging around notes, progress, summaries, quizzes, streaks, and Chrome extensions; PromptPlay should make durability, repair, and library operations the sharper wedge.
+- Reverse-order requests keep appearing in YouTube playlist discussions, which validates queue controls as a practical workflow feature rather than novelty.
 
 ## What PromptPlay should copy and outperform
 
@@ -112,6 +114,7 @@ These are the features worth matching because users already prove they want them
 - queue controls like reverse order and short-first study
 - fast resume into the next video
 - private notes attached to each learning item
+- topic tags and saved views for larger libraries
 - public path sharing and one-click save/remix
 - broken-video visibility with repair actions
 
@@ -131,7 +134,7 @@ Shipped or in-progress product direction now aligns with these signals:
 - playlist sync plus ghost/private/deleted state tracking
 - study mode with progress, hide-completed, reverse order, short/long queueing, and session budgets
 - private per-video notes
-- library search across titles, channels, and notes
+- library search, topic tags, saved views, and health rollups
 - module checkpoints and practice tasks
 - on-demand replacement suggestions for broken playlist items
 
