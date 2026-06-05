@@ -37,12 +37,7 @@ export function ImportPlaylistDialog({
     const activeYoutubeToken = youtubeAccessToken ?? connectedToken;
 
     const handleOpenChange = async (nextOpen: boolean) => {
-        if (!nextOpen) {
-            setOpen(false);
-            return;
-        }
-
-        if (!authToken) {
+        if (nextOpen && !authToken) {
             toast({
                 title: "Sign in required",
                 description: "Please sign in to import playlists.",
@@ -51,34 +46,30 @@ export function ImportPlaylistDialog({
             return;
         }
 
-        if (!activeYoutubeToken && connectYouTube) {
-            try {
-                const token = await connectYouTube();
-                setConnectedToken(token);
-                setOpen(true);
-            } catch (error) {
-                toast({
-                    title: "YouTube connection failed",
-                    description: error instanceof Error ? error.message : "Please try again.",
-                    variant: "destructive",
-                });
-            }
-            return;
-        }
+        setOpen(nextOpen);
+    };
 
-        setOpen(true);
+    const handleConnectYouTube = async () => {
+        if (!connectYouTube) return;
+
+        try {
+            const token = await connectYouTube();
+            setConnectedToken(token);
+            toast({
+                title: "YouTube connected",
+                description: "Private imports, export, and sync are now available.",
+            });
+        } catch (error) {
+            toast({
+                title: "YouTube connection failed",
+                description: error instanceof Error ? error.message : "Please try again.",
+                variant: "destructive",
+            });
+        }
     };
 
     const handleImport = async () => {
         if (!url.trim()) return;
-        if (!activeYoutubeToken) {
-            toast({
-                title: "YouTube not connected",
-                description: "Connect your YouTube account first to import playlists.",
-                variant: "destructive",
-            });
-            return;
-        }
         if (!authToken) {
             toast({
                 title: "Sign in required",
@@ -95,9 +86,9 @@ export function ImportPlaylistDialog({
                 body: {
                     youtube_playlist_url: url.trim(),
                 },
-                headers: {
+                headers: activeYoutubeToken ? {
                     "X-YouTube-Token": activeYoutubeToken,
-                },
+                } : undefined,
             });
 
             if (error) throw error;
@@ -113,6 +104,14 @@ export function ImportPlaylistDialog({
                     toast({
                         title: "Session expired",
                         description: "Reconnect YouTube and try again.",
+                        variant: "destructive",
+                    });
+                    return;
+                }
+                if (errMsg.toLowerCase().includes("private")) {
+                    toast({
+                        title: "Private playlist needs YouTube access",
+                        description: "Connect YouTube in this dialog, then try importing again.",
                         variant: "destructive",
                     });
                     return;
@@ -161,8 +160,8 @@ export function ImportPlaylistDialog({
                         Import YouTube Playlist
                     </DialogTitle>
                     <DialogDescription>
-                        Paste a YouTube playlist URL to import all video metadata.
-                        Imported playlists can be remixed, synced, and turned into guided learning paths.
+                        Paste a public or unlisted YouTube playlist URL to import it without
+                        extra permissions. Private playlists require YouTube access.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -204,8 +203,25 @@ export function ImportPlaylistDialog({
                         )}
                     </Button>
 
+                    {!activeYoutubeToken && connectYouTube && (
+                        <Button
+                            onClick={handleConnectYouTube}
+                            disabled={isConnectingYouTube}
+                            className="w-full gap-2"
+                            variant="outline"
+                        >
+                            {isConnectingYouTube ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                <Link2 className="w-4 h-4" />
+                            )}
+                            {isConnectingYouTube ? "Connecting..." : "Connect YouTube for private playlists"}
+                        </Button>
+                    )}
+
                     <p className="text-xs text-muted-foreground text-center">
-                        We'll pull this playlist into PromptPlay so you can remix it, maintain it, and structure it into a reusable path.
+                        Public imports do not need YouTube account access. Connect YouTube only
+                        for private playlists, export, or sync.
                     </p>
                 </div>
             </DialogContent>

@@ -7,7 +7,9 @@ Last updated: June 4, 2026
 PromptPlay now separates two different permissions:
 
 - Google sign-in: account identity only.
-- YouTube connection: requested only when a signed-in user imports, exports, or syncs playlists.
+- Public YouTube playlist import: server-side YouTube API key only; no user YouTube OAuth required.
+- YouTube connection: requested only when a user imports private playlists, exports to YouTube, or syncs account-owned playlists.
+- Full-access sign-in: optional one-pass sign-in path that requests YouTube access during sign-in for users who already know they want private import/export/sync.
 
 This matters because YouTube write access uses sensitive or restricted Google OAuth scopes. Asking for that during signup creates the unverified-app warning and makes the first-run experience too high-friction.
 
@@ -61,7 +63,7 @@ YouTube connection is requested separately with:
 
 - `https://www.googleapis.com/auth/youtube.force-ssl`
 
-This scope is needed for playlist creation/export operations. It should not be requested during account sign-in.
+This scope is needed for private playlist import, playlist creation/export operations, and account-owned sync. It should not be required for basic sign-in or public playlist import.
 
 In Google Cloud Console:
 
@@ -90,6 +92,8 @@ Only require YouTube connection for:
 - importing a private/user-authenticated playlist
 - exporting a PromptPlay path to YouTube
 - syncing a connected YouTube playlist
+
+Do not require YouTube connection for public or unlisted playlist import. Those imports should use the server-side `YOUTUBE_API_KEY` in the Supabase Edge Function. Offer the full-access sign-in option for users who want to avoid a second Google flow later.
 
 ## References
 

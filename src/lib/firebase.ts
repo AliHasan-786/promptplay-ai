@@ -18,9 +18,6 @@ export const googleProvider = new GoogleAuthProvider();
 export function createYouTubeProvider() {
     const provider = new GoogleAuthProvider();
     provider.addScope('https://www.googleapis.com/auth/youtube.force-ssl');
-    provider.setCustomParameters({
-        prompt: 'consent',
-    });
 
     return provider;
 }

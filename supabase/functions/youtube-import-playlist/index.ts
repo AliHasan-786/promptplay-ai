@@ -60,8 +60,10 @@ serve(async (req) => {
             );
         }
 
-        // CRITICAL-2: Read YouTube token from header, not request body
+        // Read YouTube token from header when present. Public playlist imports can
+        // use the server API key, so OAuth is only required for private playlists.
         const youtube_access_token = req.headers.get('X-YouTube-Token');
+        const youtubeApiKey = Deno.env.get('YOUTUBE_API_KEY');
         const { youtube_playlist_url } = await req.json();
 
         if (!youtube_playlist_url) {
@@ -70,10 +72,10 @@ serve(async (req) => {
                 { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
         }
-        if (!youtube_access_token) {
+        if (!youtube_access_token && !youtubeApiKey) {
             return new Response(
-                JSON.stringify({ error: 'YouTube access token required' }),
-                { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                JSON.stringify({ error: 'Public playlist import is not configured. Add YOUTUBE_API_KEY or connect YouTube.' }),
+                { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
         }
 
@@ -115,16 +117,37 @@ serve(async (req) => {
             );
         }
 
+        const fetchYouTube = (url: URL) => {
+            if (youtube_access_token) {
+                return fetch(url.toString(), {
+                    headers: { Authorization: `Bearer ${youtube_access_token}` },
+                });
+            }
+
+            url.searchParams.set('key', youtubeApiKey!);
+            return fetch(url.toString());
+        };
+
         // Fetch playlist metadata from YouTube
-        const playlistRes = await fetch(
-            `https://www.googleapis.com/youtube/v3/playlists?part=snippet&id=${playlistId}`,
-            { headers: { Authorization: `Bearer ${youtube_access_token}` } }
-        );
+        const playlistUrl = new URL('https://www.googleapis.com/youtube/v3/playlists');
+        playlistUrl.searchParams.set('part', 'snippet');
+        playlistUrl.searchParams.set('id', playlistId);
+        const playlistRes = await fetchYouTube(playlistUrl);
         const playlistData = await playlistRes.json();
         // Known API error — return friendly message, not raw exception
         if (playlistData.error) {
+            const message = youtube_access_token
+                ? 'Failed to fetch playlist from YouTube. Check the URL and try again.'
+                : 'This playlist may be private or unavailable. Connect YouTube for private playlist imports.';
             return new Response(
-                JSON.stringify({ error: 'Failed to fetch playlist from YouTube. Check the URL and try again.' }),
+                JSON.stringify({ error: message }),
+                { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+        }
+
+        if (!playlistData.items?.length) {
+            return new Response(
+                JSON.stringify({ error: 'This playlist may be private or unavailable. Connect YouTube for private playlist imports.' }),
                 { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             );
         }
@@ -139,18 +162,19 @@ serve(async (req) => {
 
         do {
             const itemsUrl = new URL('https://www.googleapis.com/youtube/v3/playlistItems');
-            itemsUrl.searchParams.set('part', 'snippet,status');
+            itemsUrl.searchParams.set('part', youtube_access_token ? 'snippet,status' : 'snippet');
             itemsUrl.searchParams.set('playlistId', playlistId);
             itemsUrl.searchParams.set('maxResults', '50');
             if (nextPageToken) itemsUrl.searchParams.set('pageToken', nextPageToken);
 
-            const itemsRes = await fetch(itemsUrl.toString(), {
-                headers: { Authorization: `Bearer ${youtube_access_token}` },
-            });
+            const itemsRes = await fetchYouTube(itemsUrl);
             const itemsData = await itemsRes.json();
             if (itemsData.error) {
+                const message = youtube_access_token
+                    ? 'Failed to fetch playlist items from YouTube. The playlist may be private or unavailable.'
+                    : 'This playlist may be private or unavailable. Connect YouTube for private playlist imports.';
                 return new Response(
-                    JSON.stringify({ error: 'Failed to fetch playlist items from YouTube. The playlist may be private or unavailable.' }),
+                    JSON.stringify({ error: message }),
                     { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
                 );
             }
@@ -187,7 +211,6 @@ serve(async (req) => {
         let privateCount = 0;
 
         const validItems = allItems.filter(item => item.snippet?.resourceId?.videoId);
-        const youtubeApiKey = Deno.env.get('YOUTUBE_API_KEY');
         const durationsByVideoId = youtubeApiKey
             ? await fetchVideoDurations(youtubeApiKey, validItems.map((item) => item.snippet.resourceId.videoId))
             : new Map<string, string>();

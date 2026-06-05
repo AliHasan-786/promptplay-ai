@@ -8,6 +8,11 @@ import {
   signInWithPopup,
   signOut as firebaseSignOut,
 } from "firebase/auth";
+import {
+  clearStoredYouTubeAccessToken,
+  getStoredYouTubeAccessToken,
+  storeYouTubeAccessToken,
+} from "@/lib/youtubeAccess";
 
 interface AuthContextType {
   user: User | null;
@@ -20,7 +25,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const YOUTUBE_TOKEN_STORAGE_KEY = "promptplay_youtube_access_token";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -28,9 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isConnectingYouTube, setIsConnectingYouTube] = useState(false);
   const [youtubeAccessToken, setYoutubeAccessToken] = useState<string | null>(() =>
-    typeof window === "undefined"
-      ? null
-      : sessionStorage.getItem(YOUTUBE_TOKEN_STORAGE_KEY),
+    getStoredYouTubeAccessToken(),
   );
 
   useEffect(() => {
@@ -42,14 +44,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         if (!session) {
-          sessionStorage.removeItem(YOUTUBE_TOKEN_STORAGE_KEY);
+          clearStoredYouTubeAccessToken();
           setYoutubeAccessToken(null);
+        } else {
+          setYoutubeAccessToken(getStoredYouTubeAccessToken());
         }
         setIsLoading(false);
       }
     );
 
     return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const syncStoredToken = () => {
+      setYoutubeAccessToken(getStoredYouTubeAccessToken());
+    };
+
+    window.addEventListener("promptplay:youtube-token-updated", syncStoredToken);
+    return () => window.removeEventListener("promptplay:youtube-token-updated", syncStoredToken);
   }, []);
 
   const connectYouTube = async () => {
@@ -68,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setYoutubeAccessToken(accessToken);
-      sessionStorage.setItem(YOUTUBE_TOKEN_STORAGE_KEY, accessToken);
+      storeYouTubeAccessToken(accessToken);
 
       return accessToken;
     } finally {
@@ -77,7 +90,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    sessionStorage.removeItem(YOUTUBE_TOKEN_STORAGE_KEY);
+    clearStoredYouTubeAccessToken();
     setYoutubeAccessToken(null);
     await supabase.auth.signOut();
     await firebaseSignOut(auth);

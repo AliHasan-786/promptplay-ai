@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { auth, googleProvider } from "@/lib/firebase";
+import { auth, createYouTubeProvider, googleProvider } from "@/lib/firebase";
 import { signInWithPopup, GoogleAuthProvider } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { HeroBackground } from "@/components/HeroBackground";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, Youtube } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { clearStoredYouTubeAccessToken, storeYouTubeAccessToken } from "@/lib/youtubeAccess";
 
 function getAuthErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : "Please try again later.";
@@ -20,19 +21,29 @@ function getAuthErrorMessage(error: unknown) {
 
 export default function Auth() {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(false);
+  const [loadingMode, setLoadingMode] = useState<"account" | "youtube" | null>(null);
 
-  const handleGoogleSignIn = async () => {
-    setIsLoading(true);
+  const handleGoogleSignIn = async (mode: "account" | "youtube") => {
+    setLoadingMode(mode);
     try {
       // 1. Trigger the Firebase popup (clean URL, custom domains supported)
-      const result = await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(
+        auth,
+        mode === "youtube" ? createYouTubeProvider() : googleProvider,
+      );
 
       // 2. Extract the ID Token for Supabase Auth.
       const credential = GoogleAuthProvider.credentialFromResult(result);
       const idToken = credential?.idToken;
+      const accessToken = credential?.accessToken;
 
       if (!idToken) throw new Error("Failed to retrieve Google ID Token");
+      if (mode === "youtube") {
+        if (!accessToken) throw new Error("Google did not return a YouTube access token.");
+        storeYouTubeAccessToken(accessToken);
+      } else {
+        clearStoredYouTubeAccessToken();
+      }
 
       // 3. Hand the tokens over to Supabase so our backend & DB stay perfectly in sync
       const { error } = await supabase.auth.signInWithIdToken({
@@ -47,12 +58,15 @@ export default function Auth() {
 
     } catch (error: unknown) {
       console.error("Auth error:", error);
+      if (mode === "youtube") {
+        clearStoredYouTubeAccessToken();
+      }
       toast({
         title: "Authentication failed",
         description: getAuthErrorMessage(error),
         variant: "destructive",
       });
-      setIsLoading(false);
+      setLoadingMode(null);
     }
   };
 
@@ -80,13 +94,13 @@ export default function Auth() {
           {/* Sign-in card */}
           <div className="glass rounded-2xl p-6 space-y-4 animate-fade-in" style={{ animationDelay: "0.1s" }}>
             <Button
-              onClick={handleGoogleSignIn}
+              onClick={() => handleGoogleSignIn("account")}
               variant="outline"
               size="lg"
               className="w-full h-14 text-base relative overflow-hidden bg-background hover:bg-secondary border-border"
-              disabled={isLoading}
+              disabled={loadingMode !== null}
             >
-              {isLoading ? (
+              {loadingMode === "account" ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <>
@@ -102,9 +116,30 @@ export default function Auth() {
               )}
             </Button>
 
+            <Button
+              onClick={() => handleGoogleSignIn("youtube")}
+              variant="glow"
+              size="lg"
+              className="w-full h-14 text-base"
+              disabled={loadingMode !== null}
+            >
+              {loadingMode === "youtube" ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  <Youtube className="w-5 h-5 mr-3" />
+                  Sign in with YouTube access
+                </>
+              )}
+            </Button>
+
             <p className="text-xs text-muted-foreground text-center">
-              Sign in creates your PromptPlay account. You can connect YouTube later when
-              importing, exporting, or syncing playlists.
+              Choose basic sign-in for generation and saving. Choose YouTube access if
+              you plan to import private playlists, export, or sync from day one.
+            </p>
+            <p className="text-[11px] text-muted-foreground/80 text-center">
+              Public playlist imports do not need YouTube access. Full access may show
+              Google's verification warning until PromptPlay completes OAuth verification.
             </p>
           </div>
 
