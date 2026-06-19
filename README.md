@@ -135,6 +135,8 @@ That wedge matters because PromptPlay can:
 - [Production roadmap](./docs/PRODUCTION_ROADMAP.md)
 - [YouTube custom feed pivot](./docs/YOUTUBE_CUSTOM_FEED_PIVOT.md)
 - [Media consumption pivot research](./docs/MEDIA_CONSUMPTION_PIVOT_RESEARCH.md)
+- [YouTube feature overlap research](./docs/YOUTUBE_FEATURE_OVERLAP_RESEARCH_2026.md)
+- [AI interaction layer research](./docs/AI_INTERACTION_LAYER_RESEARCH_2026.md)
 
 ## Current Limits
 

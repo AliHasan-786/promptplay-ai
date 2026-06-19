@@ -14,6 +14,8 @@ Companion docs:
 - [Implementation epics](./docs/IMPLEMENTATION_EPICS.md)
 - [Production roadmap](./docs/PRODUCTION_ROADMAP.md)
 - [Media consumption pivot research](./docs/MEDIA_CONSUMPTION_PIVOT_RESEARCH.md)
+- [YouTube feature overlap research](./docs/YOUTUBE_FEATURE_OVERLAP_RESEARCH_2026.md)
+- [AI interaction layer research](./docs/AI_INTERACTION_LAYER_RESEARCH_2026.md)
 
 ## 1. Executive Summary
 
