@@ -134,6 +134,7 @@ That wedge matters because PromptPlay can:
 - [OAuth setup](./docs/OAUTH_SETUP.md)
 - [Production roadmap](./docs/PRODUCTION_ROADMAP.md)
 - [YouTube custom feed pivot](./docs/YOUTUBE_CUSTOM_FEED_PIVOT.md)
+- [Media consumption pivot research](./docs/MEDIA_CONSUMPTION_PIVOT_RESEARCH.md)
 
 ## Current Limits
 

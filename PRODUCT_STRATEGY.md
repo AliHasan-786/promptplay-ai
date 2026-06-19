@@ -13,6 +13,7 @@ Companion docs:
 - [AI architecture options](./docs/AI_ARCHITECTURE_OPTIONS.md)
 - [Implementation epics](./docs/IMPLEMENTATION_EPICS.md)
 - [Production roadmap](./docs/PRODUCTION_ROADMAP.md)
+- [Media consumption pivot research](./docs/MEDIA_CONSUMPTION_PIVOT_RESEARCH.md)
 
 ## 1. Executive Summary
 
