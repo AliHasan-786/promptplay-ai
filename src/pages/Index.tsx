@@ -65,7 +65,7 @@ const Index = () => {
                   ) : (
                     <Download className="h-4 w-4" />
                   )}
-                  {isConnectingYouTube ? "Connecting YouTube..." : "Import an existing YouTube playlist"}
+                  {isConnectingYouTube ? "Connecting YouTube..." : "Import and audit a YouTube playlist"}
                 </Button>
               </ImportPlaylistDialog>
             </div>
@@ -75,7 +75,7 @@ const Index = () => {
           {!authLoading && !user && (
             <div className="text-center animate-fade-in">
               <p className="text-muted-foreground mb-3">
-                Sign in to generate playlists, remix collections, and build guided YouTube learning paths
+                Sign in to import, audit, repair, and build guided YouTube learning paths
               </p>
               <button
                 onClick={() => navigate("/auth")}

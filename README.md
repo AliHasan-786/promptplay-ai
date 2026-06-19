@@ -1,15 +1,16 @@
 # PromptPlay
 
-PromptPlay turns YouTube prompts and playlists into a usable library:
+PromptPlay turns YouTube feeds and playlists into durable learning paths:
 
-- generate a curated playlist from a prompt
+- generate or import a starter collection
 - import an existing YouTube playlist
+- audit whether a collection is complete, sequenced, and durable
 - remix a saved playlist into new recommendations
 - export playlists back to YouTube
 - structure tutorial or research playlists into guided learning paths
 - sync imported/exported playlists to detect deleted or private videos
 
-This is no longer just a flat “AI playlist maker.” The product direction is `YouTube learning and curation infrastructure`: import, organize, maintain, and reuse video collections over time.
+This is no longer a flat “AI playlist maker.” YouTube is increasingly strong at prompt-based discovery, so PromptPlay’s product direction is `feed-to-path infrastructure`: import, audit, organize, maintain, and reuse video collections over time.
 
 ## Stack
 
@@ -31,9 +32,11 @@ This is no longer just a flat “AI playlist maker.” The product direction is 
    Imports an existing YouTube playlist into PromptPlay and preserves unavailable videos.
 4. `build-learning-path`
    Turns a flat playlist into ordered modules with goals, outcomes, and watch-order rationale.
-5. `sync-playlist`
+5. `audit-playlist`
+   Scores a saved collection against path quality, missing angles, sequence risk, maintenance risk, and next actions.
+6. `sync-playlist`
    Refreshes playlist availability against YouTube so deleted/private items are visible.
-6. `youtube-create-playlist`
+7. `youtube-create-playlist`
    Exports a saved PromptPlay playlist back to YouTube and records the linked YouTube playlist id.
 
 ## Local Setup
@@ -77,6 +80,7 @@ Set these in Supabase Edge Function secrets:
 npx supabase functions deploy generate-playlist
 npx supabase functions deploy save-generated-playlist
 npx supabase functions deploy build-learning-path
+npx supabase functions deploy audit-playlist
 npx supabase functions deploy sync-playlist
 npx supabase functions deploy youtube-import-playlist
 npx supabase functions deploy youtube-create-playlist
@@ -129,6 +133,7 @@ That wedge matters because PromptPlay can:
 - [Implementation epics](./docs/IMPLEMENTATION_EPICS.md)
 - [OAuth setup](./docs/OAUTH_SETUP.md)
 - [Production roadmap](./docs/PRODUCTION_ROADMAP.md)
+- [YouTube custom feed pivot](./docs/YOUTUBE_CUSTOM_FEED_PIVOT.md)
 
 ## Current Limits
 

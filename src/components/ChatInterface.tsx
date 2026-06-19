@@ -168,12 +168,12 @@ export function ChatInterface({ authToken, onPlaylistCreated }: ChatInterfacePro
     };
 
     const placeholders = [
-        "Relaxing video game soundtracks for studying...",
-        "Best React tutorials for beginners...",
-        "A practical YouTube learning path for mastering SQL analytics...",
-        "Epic orchestral music like Two Steps from Hell...",
-        "Top tech reviews of 2025...",
-        "Chill lo-fi beats for late night coding...",
+        "Turn a YouTube rabbit hole about React Server Components into a 2-hour study path...",
+        "Build a practical path for learning SQL analytics with projects and checkpoints...",
+        "Audit what a beginner needs before watching advanced Kubernetes tutorials...",
+        "Create a durable research path on AI agents beyond hype videos...",
+        "Organize the best product design talks into a founder-friendly curriculum...",
+        "Build an onboarding path for a junior data analyst using YouTube videos...",
     ];
 
     const randomPlaceholder = placeholders[Math.floor(Math.random() * placeholders.length)];
@@ -188,28 +188,28 @@ export function ChatInterface({ authToken, onPlaylistCreated }: ChatInterfacePro
                             <ListMusic className="w-8 h-8 text-white" />
                         </div>
                         <h2 className="text-2xl font-bold text-foreground mb-2">
-                            What do you want to <span className="text-red-500">find?</span>
+                            Turn YouTube into a <span className="text-red-500">path.</span>
                         </h2>
                         <p className="text-muted-foreground max-w-md mx-auto mb-6">
-                            Describe a topic, creator mix, or learning goal and PromptPlay
-                            will find the best YouTube videos to start your collection.
+                            YouTube can give you a feed. PromptPlay helps you import, audit,
+                            structure, repair, and finish the playlists that matter.
                         </p>
 
                         {/* How it works */}
                         <div className="flex items-center justify-center gap-8 text-xs text-muted-foreground mt-8">
                             <div className="flex flex-col items-center gap-2">
                                 <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-sm font-bold">1</div>
-                                <span>Describe what you want</span>
+                                <span>Import or describe a goal</span>
                             </div>
                             <div className="w-6 h-px bg-border" />
                             <div className="flex flex-col items-center gap-2">
                                 <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-sm font-bold">2</div>
-                                <span>Preview & curate results</span>
+                                <span>Audit gaps and quality</span>
                             </div>
                             <div className="w-6 h-px bg-border" />
                             <div className="flex flex-col items-center gap-2">
                                 <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center text-sm font-bold">3</div>
-                                <span>Save & export to YouTube</span>
+                                <span>Build a durable path</span>
                             </div>
                         </div>
                     </div>

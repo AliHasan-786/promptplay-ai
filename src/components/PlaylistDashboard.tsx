@@ -95,6 +95,18 @@ interface PlaylistRepairSuggestion {
   candidates: ReplacementCandidate[];
 }
 
+interface PlaylistAudit {
+  quality_score: number;
+  verdict: string;
+  feed_gap: string;
+  strengths: string[];
+  missing_angles: string[];
+  sequencing_risks: string[];
+  maintenance_risks: string[];
+  next_actions: string[];
+  suggested_path_name: string;
+}
+
 interface PlaylistDashboardProps {
   authToken: string | null;
   providerToken: string | null;
@@ -170,6 +182,8 @@ export function PlaylistDashboard({
   const [repairingId, setRepairingId] = useState<string | null>(null);
   const [applyingReplacementId, setApplyingReplacementId] = useState<string | null>(null);
   const [replacementSuggestions, setReplacementSuggestions] = useState<Record<string, PlaylistRepairSuggestion[]>>({});
+  const [auditingId, setAuditingId] = useState<string | null>(null);
+  const [playlistAudits, setPlaylistAudits] = useState<Record<string, PlaylistAudit>>({});
 
   const fetchPlaylists = async () => {
     if (!authToken) return;
@@ -340,6 +354,65 @@ export function PlaylistDashboard({
     if (healthScore >= 95) return "border-emerald-400/30 bg-emerald-400/10 text-emerald-300";
     if (healthScore >= 80) return "border-yellow-400/30 bg-yellow-400/10 text-yellow-300";
     return "border-red-400/30 bg-red-400/10 text-red-300";
+  };
+
+  const getAuditBadgeClass = (score: number) => {
+    if (score >= 80) return "border-emerald-400/30 bg-emerald-400/10 text-emerald-300";
+    if (score >= 60) return "border-yellow-400/30 bg-yellow-400/10 text-yellow-300";
+    return "border-red-400/30 bg-red-400/10 text-red-300";
+  };
+
+  const buildLocalPlaylistAudit = (playlist: PlaylistRecord): PlaylistAudit => {
+    const stats = getPlaylistStats(playlist);
+    const channelCount = new Set(playlist.songs.map((song) => song.artist_name || "Unknown")).size;
+    const hasGoodSize = playlist.songs.length >= 6 && playlist.songs.length <= 30;
+    const hasPath = Boolean(playlist.learning_path);
+    const qualityScore = Math.max(0, Math.min(100, Math.round(
+      40 +
+      Math.min(stats.activeCount, 12) * 3 +
+      Math.min(channelCount, 6) * 4 +
+      (hasGoodSize ? 8 : -6) +
+      (hasPath ? 12 : 0) +
+      Math.min(stats.noteCount, 5) * 2 -
+      stats.ghostCount * 10,
+    )));
+
+    return {
+      quality_score: qualityScore,
+      verdict: qualityScore >= 75
+        ? "Strong path foundation"
+        : qualityScore >= 55
+          ? "Useful collection, but still needs path structure"
+          : "Fragile collection that needs repair and sequencing",
+      feed_gap: "A YouTube custom feed can surface adjacent videos, but this collection still needs deliberate ordering, gap checks, progress, notes, and upkeep to become a durable path.",
+      strengths: [
+        `${playlist.songs.length} videos are already saved in one reusable collection.`,
+        channelCount > 1
+          ? `It spans ${channelCount} channels, which can make it stronger than a single recommendation feed.`
+          : "The collection has a focused source mix that can work well if the creator is trusted.",
+        hasPath
+          ? "A structured learning path already exists and can be refreshed as the playlist changes."
+          : "It is ready to be converted into modules, outcomes, and a watch order.",
+      ],
+      missing_angles: [
+        "Add an explicit outcome so the learner knows what finishing this path means.",
+        "Check for missing prerequisites, practice tasks, or newer counterpoints.",
+        "Add notes or checkpoints so the path creates memory, not just watch time.",
+      ],
+      sequencing_risks: [
+        "The current order may mix fundamentals, examples, and deep dives without prerequisite logic.",
+        "The first two videos should create a fast win or users may return to passive feed browsing.",
+      ],
+      maintenance_risks: stats.ghostCount > 0
+        ? [`${stats.ghostCount} videos are unavailable and should be replaced before sharing.`]
+        : ["No unavailable videos are currently recorded, but this path should be synced periodically."],
+      next_actions: [
+        hasPath ? "Refresh the learning path after major edits." : "Build the learning path.",
+        stats.ghostCount > 0 ? "Find replacements for unavailable videos." : "Publish once the path description is clear.",
+        "Add notes or checkpoints to make this more valuable than a feed.",
+      ],
+      suggested_path_name: playlist.learning_path?.title || playlist.prompt_text,
+    };
   };
 
   const playlistMatchesView = (playlist: PlaylistRecord, view: LibraryView) => {
@@ -516,6 +589,49 @@ export function PlaylistDashboard({
       });
     } finally {
       setRepairingId(null);
+    }
+  };
+
+  const handleAuditPlaylist = async (playlistId: string) => {
+    setAuditingId(playlistId);
+    const localPlaylist = playlists.find((playlist) => playlist.id === playlistId);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("audit-playlist", {
+        body: { playlist_id: playlistId },
+      });
+
+      if (data?.error) throw new Error(data.error);
+      if (error) throw error;
+
+      setPlaylistAudits((prev) => ({
+        ...prev,
+        [playlistId]: data as PlaylistAudit,
+      }));
+      setExpandedId(playlistId);
+    } catch (error) {
+      console.error("Playlist audit error:", error);
+
+      if (localPlaylist?.songs.length) {
+        setPlaylistAudits((prev) => ({
+          ...prev,
+          [playlistId]: buildLocalPlaylistAudit(localPlaylist),
+        }));
+        setExpandedId(playlistId);
+        toast({
+          title: "Cloud audit unavailable",
+          description: "Generated a local path audit from saved playlist metadata.",
+        });
+        return;
+      }
+
+      toast({
+        title: "Could not audit this path",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setAuditingId(null);
     }
   };
 
@@ -1057,6 +1173,15 @@ export function PlaylistDashboard({
             progressPercent,
           } = playlistStats;
           const playlistRepairSuggestions = replacementSuggestions[playlist.id] || [];
+          const playlistAudit = playlistAudits[playlist.id];
+          const auditSections: Array<[string, string[]]> = playlistAudit
+            ? [
+                ["Strengths", playlistAudit.strengths],
+                ["Missing angles", playlistAudit.missing_angles],
+                ["Sequence risks", playlistAudit.sequencing_risks],
+                ["Maintenance risks", playlistAudit.maintenance_risks],
+              ]
+            : [];
           const remainingVideos = playlist.songs.filter((song) =>
             song.status === "active" && !["completed", "skipped"].includes(song.watch_state),
           );
@@ -1100,6 +1225,11 @@ export function PlaylistDashboard({
                       <Badge variant="outline" className={getHealthBadgeClass(healthScore)}>
                         {healthScore}% health
                       </Badge>
+                      {playlistAudit && (
+                        <Badge variant="outline" className={getAuditBadgeClass(playlistAudit.quality_score)}>
+                          {playlistAudit.quality_score}% audit
+                        </Badge>
+                      )}
                       {noteCount > 0 && (
                         <span>{noteCount} notes</span>
                       )}
@@ -1136,6 +1266,22 @@ export function PlaylistDashboard({
                   </button>
 
                   <div className="flex items-center gap-1 flex-shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleAuditPlaylist(playlist.id)}
+                      disabled={auditingId === playlist.id || isGenerating || isExporting || isBuildingPath || isSyncing}
+                      className="gap-1.5 text-xs text-cyan-300 hover:bg-cyan-500/10 hover:text-cyan-200"
+                      title="Audit path quality"
+                    >
+                      {auditingId === playlist.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                      )}
+                      Audit
+                    </Button>
+
                     {playlist.youtube_playlist_id && (
                       <Button variant="ghost" size="icon" asChild className="h-8 w-8">
                         <a
@@ -1355,6 +1501,87 @@ export function PlaylistDashboard({
                           ))}
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {playlistAudit && (
+                    <div className="border-b border-border/50 px-4 py-4">
+                      <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-4">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-400/15 text-cyan-200">
+                                <ShieldCheck className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <h4 className="text-sm font-semibold text-foreground">Path audit</h4>
+                                <p className="text-sm text-muted-foreground">
+                                  What this needs beyond a YouTube custom feed.
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="outline" className={getAuditBadgeClass(playlistAudit.quality_score)}>
+                                {playlistAudit.quality_score}% quality
+                              </Badge>
+                              <span className="text-sm font-medium text-foreground">
+                                {playlistAudit.verdict}
+                              </span>
+                            </div>
+
+                            <p className="max-w-3xl text-sm text-muted-foreground">
+                              {playlistAudit.feed_gap}
+                            </p>
+                          </div>
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleBuildLearningPath(playlist.id)}
+                            disabled={isBuildingPath || playlist.songs.length < 2}
+                            className="gap-2 text-xs"
+                          >
+                            {isBuildingPath ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Route className="h-3.5 w-3.5" />
+                            )}
+                            Build the path
+                          </Button>
+                        </div>
+
+                        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                          {auditSections.map(([label, items]) => (
+                            <div key={label} className="rounded-xl border border-border/50 bg-background/50 p-3">
+                              <h5 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                {label}
+                              </h5>
+                              <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
+                                {items.map((item) => (
+                                  <li key={item} className="flex gap-2">
+                                    <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-cyan-300/70" />
+                                    <span>{item}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="mt-3 rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-3">
+                          <h5 className="text-xs font-semibold uppercase tracking-wide text-cyan-200">
+                            Next actions
+                          </h5>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {playlistAudit.next_actions.map((action) => (
+                              <Badge key={action} variant="outline" className="border-cyan-400/30 bg-cyan-400/10 text-cyan-100">
+                                {action}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
 

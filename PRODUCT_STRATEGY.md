@@ -1,9 +1,10 @@
 # PromptPlay Product Strategy
 
-Last updated: June 4, 2026
+Last updated: June 18, 2026
 
 Companion docs:
 
+- [YouTube custom feed pivot](./docs/YOUTUBE_CUSTOM_FEED_PIVOT.md)
 - [Competitive research](./docs/COMPETITIVE_RESEARCH.md)
 - [Ecosystem research](./docs/ECOSYSTEM_RESEARCH.md)
 - [Expansion opportunities](./docs/EXPANSION_OPPORTUNITIES.md)
@@ -41,13 +42,15 @@ The product should help users:
 
 - YouTube Music already offers generative “Ask Music” mixes.
 - Gemini can create YouTube Music playlists or radio.
+- YouTube has rolled out prompt-generated custom feeds where users type interests and get a personalized feed directly inside YouTube.
 - YouTube has creator-side Courses, but they are limited and do not allow cross-channel video inclusion.
 - YouTube’s one-time paid Course model was wound down in late 2025.
 
 Implication:
 
-- Google is covering generic playlist generation.
+- Google is covering generic playlist and feed generation.
 - Google is not solving cross-channel structured learning, maintenance, team workflows, or durable knowledge capture well.
+- PromptPlay should treat YouTube discovery as an input source, not the thing to beat.
 
 ### Third-Party Competition Buckets
 
@@ -124,13 +127,14 @@ This wedge is stronger than generic playlist generation because it combines:
 
 - curation
 - sequencing
+- quality audits
 - maintenance
 - knowledge extraction
 - reuse
 
 The core promise:
 
-`Turn a fragile YouTube playlist into a durable, structured, explorable learning asset.`
+`YouTube gives you a feed. PromptPlay turns it into a durable, structured, explorable learning asset.`
 
 ## 4. Who It Is For
 
@@ -213,6 +217,7 @@ Most competitors are strong in only one or two layers.
 
 - Prompt-to-playlist generation
 - Import YouTube playlists
+- Path-quality audits
 - Export to YouTube
 - Save generated collections
 - Remix saved collections
@@ -406,6 +411,7 @@ Ship:
 
 - server-owned save/export/sync flows
 - learning path generation
+- path audit against sequencing, gaps, and maintenance risk
 - source-aware playlists
 - playlist health states
 - better landing and dashboard messaging
@@ -665,6 +671,7 @@ Bad:
 Better:
 
 - “Turn any YouTube playlist into a guided learning path”
+- “YouTube gives you the feed. PromptPlay turns it into an outcome.”
 - “Stop losing great YouTube tutorials”
 - “Import, organize, sync, and finish the playlists you actually care about”
 

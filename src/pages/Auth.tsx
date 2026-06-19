@@ -82,12 +82,11 @@ export default function Auth() {
               PromptPlay
             </h1>
             <p className="text-lg text-muted-foreground font-medium mb-2">
-              Build smarter YouTube playlists and guided learning paths
+              Turn YouTube feeds and playlists into durable paths
             </p>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              Describe a topic, import an existing playlist, or remix what you already save.
-              PromptPlay helps you turn flat video lists into curated collections you can
-              export, maintain, and structure into guided paths.
+              Import a feed or playlist, audit what is missing, and structure it into
+              a reusable learning or research path you can maintain over time.
             </p>
           </div>
 
@@ -134,8 +133,8 @@ export default function Auth() {
             </Button>
 
             <p className="text-xs text-muted-foreground text-center">
-              Choose basic sign-in for generation and saving. Choose YouTube access if
-              you plan to import private playlists, export, or sync from day one.
+              Basic sign-in is enough for public imports, audits, generated paths, and saving.
+              Choose YouTube access only for private imports, export, or account-owned sync.
             </p>
             <p className="text-[11px] text-muted-foreground/80 text-center">
               Public playlist imports do not need YouTube access. Full access may show
