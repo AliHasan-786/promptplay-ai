@@ -123,7 +123,9 @@ That wedge matters because PromptPlay can:
 
 ## Planning Docs
 
+- [Audit handoff](./AUDIT_HANDOFF.md)
 - [Product strategy](./PRODUCT_STRATEGY.md)
+- [Google / Firebase auth setup](./GOOGLE_OAUTH_SETUP.md)
 - [Competitive research](./docs/COMPETITIVE_RESEARCH.md)
 - [Ecosystem research](./docs/ECOSYSTEM_RESEARCH.md)
 - [Expansion opportunities](./docs/EXPANSION_OPPORTUNITIES.md)
